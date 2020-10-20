@@ -28,7 +28,7 @@ class UserItemRatingDataset(Dataset):
 
 class SampleGenerator(object):
     """Construct dataset for NCF"""
-
+    
     def __init__(self, ratings):
         """
         args:
@@ -39,14 +39,17 @@ class SampleGenerator(object):
         assert 'rating' in ratings.columns
 
         self.ratings = ratings
+        print("1")
         # explicit feedback using _normalize and implicit using _binarize
         # self.preprocess_ratings = self._normalize(ratings)
         self.preprocess_ratings = self._binarize(ratings)
         self.user_pool = set(self.ratings['userId'].unique())
         self.item_pool = set(self.ratings['itemId'].unique())
+        print("2")
         # create negative item samples for NCF learning
         self.negatives = self._sample_negative(ratings)
         self.train_ratings, self.test_ratings = self._split_loo(self.preprocess_ratings)
+        print("3")
 
     def _normalize(self, ratings):
         """normalize into [0, 1] from [0, max_rating], explicit feedback"""
