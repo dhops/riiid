@@ -93,7 +93,7 @@ def log_validation_results(engine):
 trainer.add_event_handler(event_name=Events.EPOCH_COMPLETED, handler=log_validation_results)
 
 # Run the model for 50 epochs
-trainer.run(train_loader, max_epochs=50)
+trainer.run(train_loader, max_epochs=1)
 
 # Save the model to a separate folder
 torch.save(model.state_dict(), '../models/vanilla_mf.pth')
