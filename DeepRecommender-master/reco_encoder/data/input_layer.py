@@ -27,6 +27,7 @@ class UserItemRecDataProvider:
     data_full = np.load('../input/deepRecDataset.npz')
 
     if ~test_set:
+      print('loading training data')
       if user_id_map is None or item_id_map is None:
         # self._build_maps()
         self._user_id_map = data_full['user_map'].item()
@@ -64,6 +65,7 @@ class UserItemRecDataProvider:
         with open('data/train_set.pkl', 'wb') as f:
           pickle.dump(self.data, f, pickle.HIGHEST_PROTOCOL)
     else:
+      print('loading testing data')
       if user_id_map is None or item_id_map is None:
         # self._build_maps()
         self._user_id_map = data_full['user_map'].item()
@@ -86,7 +88,7 @@ class UserItemRecDataProvider:
           self.data = pickle.load(f)
       except:
         test_set = data_full['test_set']
-
+        print('here')
         for i in range(len(test_set)):
           key = major_map[test_set[i][self._major_ind]]
           value = minor_map[test_set[i][self._minor_ind]]
@@ -95,7 +97,7 @@ class UserItemRecDataProvider:
           if key not in self.data:
             self.data[key] = []
           self.data[key].append((value, rating))
-          if i%10000 == 0:
+          if i%1000 == 0:
             print(i)
         with open('data/test_set.pkl', 'wb') as f:
           pickle.dump(self.data, f, pickle.HIGHEST_PROTOCOL)

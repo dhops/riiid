@@ -20,7 +20,7 @@ parser.add_argument('--lr', type=float, default=0.00001, metavar='N',
                     help='learning rate')
 parser.add_argument('--weight_decay', type=float, default=0.0, metavar='N',
                     help='L2 weight decay')
-parser.add_argument('--drop_prob', type=float, default=0.0, metavar='N',
+parser.add_argument('--drop_prob', type=float, default=0.8, metavar='N',
                     help='dropout drop probability')
 parser.add_argument('--noise_prob', type=float, default=0.0, metavar='N',
                     help='noise probability')
@@ -199,16 +199,16 @@ def main():
       t_loss += loss.item()
       t_loss_denom += 1
 
-      if i % args.summary_frequency == 0:
-        print('[%d, %5d] RMSE: %.7f' % (epoch, i, sqrt(t_loss / t_loss_denom)))
-        logger.scalar_summary("Training_RMSE", sqrt(t_loss/t_loss_denom), global_step)
-        t_loss = 0
-        t_loss_denom = 0.0
-        log_var_and_grad_summaries(logger, rencoder.encode_w, global_step, "Encode_W")
-        log_var_and_grad_summaries(logger, rencoder.encode_b, global_step, "Encode_b")
-        if not rencoder.is_constrained:
-          log_var_and_grad_summaries(logger, rencoder.decode_w, global_step, "Decode_W")
-        log_var_and_grad_summaries(logger, rencoder.decode_b, global_step, "Decode_b")
+      # if i % args.summary_frequency == 0:
+      #   print('[%d, %5d] RMSE: %.7f' % (epoch, i, sqrt(t_loss / t_loss_denom)))
+      #   logger.scalar_summary("Training_RMSE", sqrt(t_loss/t_loss_denom), global_step)
+      #   t_loss = 0
+      #   t_loss_denom = 0.0
+      #   log_var_and_grad_summaries(logger, rencoder.encode_w, global_step, "Encode_W")
+      #   log_var_and_grad_summaries(logger, rencoder.encode_b, global_step, "Encode_b")
+      #   if not rencoder.is_constrained:
+      #     log_var_and_grad_summaries(logger, rencoder.decode_w, global_step, "Decode_W")
+      #   log_var_and_grad_summaries(logger, rencoder.decode_b, global_step, "Decode_b")
 
       total_epoch_loss += loss.item()
       denom += 1
@@ -230,8 +230,8 @@ def main():
     e_end_time = time.time()
     print('Total epoch {} finished in {} seconds with TRAINING RMSE loss: {}'
           .format(epoch, e_end_time - e_start_time, sqrt(total_epoch_loss/denom)))
-    logger.scalar_summary("Training_RMSE_per_epoch", sqrt(total_epoch_loss/denom), epoch)
-    logger.scalar_summary("Epoch_time", e_end_time - e_start_time, epoch)
+    # logger.scalar_summary("Training_RMSE_per_epoch", sqrt(total_epoch_loss/denom), epoch)
+    # logger.scalar_summary("Epoch_time", e_end_time - e_start_time, epoch)
     if epoch % args.save_every == 0 or epoch == args.num_epochs - 1:
       eval_loss = do_eval(rencoder, eval_data_layer)
       print('Epoch {} EVALUATION LOSS: {}'.format(epoch, eval_loss))
