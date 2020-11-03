@@ -199,8 +199,8 @@ def main():
       t_loss += loss.item()
       t_loss_denom += 1
 
-      # if i % args.summary_frequency == 0:
-      #   print('[%d, %5d] RMSE: %.7f' % (epoch, i, sqrt(t_loss / t_loss_denom)))
+      if i % args.summary_frequency == 0:
+        print('[%d, %5d] RMSE: %.7f' % (epoch, i, sqrt(t_loss / t_loss_denom)))
       #   logger.scalar_summary("Training_RMSE", sqrt(t_loss/t_loss_denom), global_step)
       #   t_loss = 0
       #   t_loss_denom = 0.0
