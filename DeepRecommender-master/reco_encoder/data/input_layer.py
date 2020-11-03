@@ -24,84 +24,20 @@ class UserItemRecDataProvider:
 
     # Hard-coded for Riiid Data
 
-    data_full = np.load('../input/deepRecDataset.npz')
+    with open('data/major_map.pkl', 'rb') as f:
+          self._user_id_map = pickle.load(f)
+    with open('data/minor_map.pkl', 'rb') as f:
+          self._item_id_map = pickle.load(f)
+      
+    self._vector_dim = len(self._item_id_map)
+    self._batch_size = self.params['batch_size']
 
-    if ~test_set:
-      print('loading training data')
-      if user_id_map is None or item_id_map is None:
-        # self._build_maps()
-        self._user_id_map = data_full['user_map'].item()
-        self._item_id_map = data_full['item_map'].item()
-      else:
-        self._user_id_map = user_id_map
-        self._item_id_map = item_id_map
-
-      major_map = self._item_id_map if self._major == 'items' else self._user_id_map
-      minor_map = self._user_id_map if self._major == 'items' else self._item_id_map
-
-      self._vector_dim = len(minor_map)
-
-      self._batch_size = self.params['batch_size']
-
-      self.data = dict()
-
-      try: 
-        with open('data/train_set.pkl', 'rb') as f:
-          self.data = pickle.load(f)
-          print(type(self.data[0]))
-      except:
-        train_set = data_full['train_set']
-
-        for i in range(len(train_set)):
-          key = major_map[train_set[i][self._major_ind]]
-          value = minor_map[train_set[i][self._minor_ind]]
-          rating = float(train_set[i][self._r_id])
-          # print("Key: {}, Value: {}, Rating: {}".format(key, value, rating))
-          if key not in self.data:
-            self.data[key] = []
-          self.data[key].append((value, rating))
-          if i%1000000 == 0:
-            print(i)
-        with open('data/train_set.pkl', 'wb') as f:
-          pickle.dump(self.data, f, pickle.HIGHEST_PROTOCOL)
+    if test_set==False:
+      with open('data/train_set.pkl', 'rb') as f:
+        self.data = pickle.load(f)
     else:
-      print('loading testing data')
-      if user_id_map is None or item_id_map is None:
-        # self._build_maps()
-        self._user_id_map = data_full['user_map'].item()
-        self._item_id_map = data_full['item_map'].item()
-      else:
-        self._user_id_map = user_id_map
-        self._item_id_map = item_id_map
-
-      major_map = self._item_id_map if self._major == 'items' else self._user_id_map
-      minor_map = self._user_id_map if self._major == 'items' else self._item_id_map
-
-      self._vector_dim = len(minor_map)
-
-      self._batch_size = self.params['batch_size']
-
-      self.data = dict()
-
-      try: 
-        with open('data/test_set.pkl', 'rb') as f:
-          self.data = pickle.load(f)
-      except:
-        test_set = data_full['test_set']
-        print('here')
-        for i in range(len(test_set)):
-          key = major_map[test_set[i][self._major_ind]]
-          value = minor_map[test_set[i][self._minor_ind]]
-          rating = float(test_set[i][self._r_id])
-          # print("Key: {}, Value: {}, Rating: {}".format(key, value, rating))
-          if key not in self.data:
-            self.data[key] = []
-          self.data[key].append((value, rating))
-          if i%1000 == 0:
-            print(i)
-        with open('data/test_set.pkl', 'wb') as f:
-          pickle.dump(self.data, f, pickle.HIGHEST_PROTOCOL)
-
+      with open('data/test_set.pkl', 'rb') as f:
+        self.data = pickle.load(f)
 
     # if user_id_map is None or item_id_map is None:
     #   self._build_maps()
