@@ -141,6 +141,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     for epoch_i in range(epoch):
         # Perform training on the train set
         train(model, optimizer, train_data_loader, criterion, device)
+        torch.save(model.state_dict(), f'{save_dir}/{model_name}-{epoch_i}.pt')
         # Perform evaluation on the validation set
         valid_auc = test(model, valid_data_loader, device)
         # Log the epochs and AUC on the validation set
