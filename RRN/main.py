@@ -159,7 +159,7 @@ def test(model, data_loader, device):
             total_output = torch.clamp(y + ncf_outputs, 0, 1)
 
             # IS THIS CORRECT????
-            mask = questions > 0
+            mask = questions != q_padding_idx
             outputs = torch.masked_select(total_output, mask)
             targets = torch.masked_select(targets.float().squeeze(), mask)
 
