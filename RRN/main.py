@@ -174,9 +174,6 @@ def test(model, data_loader, device):
             if (k + 1) % 10 == 0:
                 print('test iteration: ', k)
 
-    from guppy import hpy
-    h = hpy()
-    print(h.heap())
 
     # Return AUC score between predicted ratings and actual ratings
     print('ncf roc:')
