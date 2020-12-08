@@ -53,7 +53,7 @@ class UserTemp(nn.Module):
 
         user_temp_contribution = self.hidden2label(lstm_out).squeeze()
 
-        out = torch.sigmoid(user_temp_contribution)
+        out = torch.tanh(user_temp_contribution)
         
         return out
 
