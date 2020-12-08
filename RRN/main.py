@@ -100,8 +100,10 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
         ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long).to(device)
 
         for i in range(batch_size):
-                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 0] = users[i]
-                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 1] = questions[i]
+                start_idx = i*max_seq_len
+                end_idx = start_idx + len(questions[i])
+                ncf_inputs[start_idx:end_idx, 0] = users[i]
+                ncf_inputs[start_idx:end_idx, 1] = questions[i]
 
         ncf_outputs = ncf(ncf_inputs).detach()
         
@@ -151,8 +153,10 @@ def test(model, data_loader, device):
             ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long).to(device)
 
             for i in range(batch_size):
-                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 0] = users[i]
-                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 1] = questions[i]
+                start_idx = i*max_seq_len
+                end_idx = start_idx + len(questions[i])
+                ncf_inputs[start_idx:end_idx, 0] = users[i]
+                ncf_inputs[start_idx:end_idx, 1] = questions[i]
 
             ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,max_seq_len)
 
@@ -169,6 +173,10 @@ def test(model, data_loader, device):
 
             if (k + 1) % 10 == 0:
                 print('test iteration: ', k)
+
+    from guppy import hpy
+    h = hpy()
+    print(h.heap())
 
     # Return AUC score between predicted ratings and actual ratings
     print('ncf roc:')
