@@ -108,7 +108,7 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
         total_output = torch.clamp(y + ncf_outputs.reshape(batch_size,max_seq_len), 0, 1)
 
         # IS THIS CORRECT????
-        mask = questions > 0
+        mask = questions != q_padding_idx
         total_output = total_output * mask
 
         loss = criterion(total_output, targets.float().squeeze())
