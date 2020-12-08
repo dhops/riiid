@@ -94,20 +94,22 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
         questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
         batch_size = questions.shape[0]
+        seq_len = questions.shape[1]
 
         y = model(questions, times, tags)
 
-        ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long).to(device)
+        # NEW METHOD FOR NCF INPUTS
+        ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
 
         for i in range(batch_size):
-                start_idx = i*max_seq_len
-                end_idx = start_idx + len(questions[i])
-                ncf_inputs[start_idx:end_idx, 0] = users[i]
-                ncf_inputs[start_idx:end_idx, 1] = questions[i]
+            start_idx = i*max_seq_len
+            end_idx = start_idx + seq_len
+            ncf_inputs[start_idx:end_idx, 0] = users[i]
+            ncf_inputs[start_idx:end_idx, 1] = questions[i]
 
-        ncf_outputs = ncf(ncf_inputs).detach()
+        ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
         
-        total_output = torch.clamp(y + ncf_outputs.reshape(batch_size,max_seq_len), 0, 1)
+        total_output = torch.clamp(y + ncf_outputs, 0, 1)
 
         # IS THIS CORRECT????
         mask = questions != q_padding_idx
@@ -146,19 +148,20 @@ def test(model, data_loader, device):
             questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
             batch_size = questions.shape[0]
+            seq_len = questions.shape[1]
 
             y = model(questions, times, tags)
 
             # NEW METHOD FOR NCF INPUTS
-            ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long).to(device)
+            ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
 
             for i in range(batch_size):
                 start_idx = i*max_seq_len
-                end_idx = start_idx + len(questions[i])
+                end_idx = start_idx + seq_len
                 ncf_inputs[start_idx:end_idx, 0] = users[i]
                 ncf_inputs[start_idx:end_idx, 1] = questions[i]
 
-            ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,max_seq_len)
+            ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
 
             total_output = torch.clamp(y + ncf_outputs, 0, 1)
 
