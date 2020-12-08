@@ -22,21 +22,18 @@ class RRNDataset(torch.utils.data.Dataset):
             self.rrn_dict_ratings = pickle.load(f)
         with open(dataset_path + 'rrn_dict_tags.pkl', 'rb') as f:
             self.rrn_dict_tags = pickle.load(f)
-        with open(dataset_path + 'item_map.pkl', 'rb') as f:
-            self.item_map = pickle.load(f)
+        # with open(dataset_path + 'item_map.pkl', 'rb') as f:
+        #     self.item_map = pickle.load(f)
 
         tagset_size = 188
         tag_padding_idx = tagset_size
         max_tags = 6
 
-        self.tags = torch.ones((len(self.rrn_dict_tags), max_tags)) * tag_padding_idx
+        self.tags = torch.ones((len(self.rrn_dict_tags), max_tags), dtype=torch.long) * tag_padding_idx
         for k, v in self.rrn_dict_tags.items():
             if type(v) is list:
                 for i in range(len(v)):
-                    self.tags[self.item_map[k], i] = v[i]
-
-        print(self.tags[:5,:])
-        
+                    self.tags[k, i] = v[i]
 
 
 
@@ -70,22 +67,18 @@ class RRNDataset(torch.utils.data.Dataset):
         :param index: current index
         :return: the items, timestamps and ratings at current index
         """
-        user = index + 1 # BECAUSE 0 IS PADDING VALUE
-        questions = torch.from_numpy(np.asarray(self.rrn_dict_items[user]))
-        times = torch.from_numpy(np.asarray(self.rrn_dict_times[user]))
-        targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[user]))
-
-        for q in self.rrn_dict_items[user]:
-            print(q)
-            print(rrn_dict_tags[q])
-
-
-
+        user = index
+        qs = np.asarray(self.rrn_dict_items[index])
+        questions = torch.from_numpy(qs)
+        times = torch.from_numpy(np.asarray(self.rrn_dict_times[index]))
+        targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[index]))
+        tags = self.tags[qs]
 
         if len(questions) > 200:
             questions = questions[:200]
             times = times[:200]
             targets = targets[:200]
-        return user, questions, times, targets
+            tags = tags[:200,:]
+        return user, questions, times, targets, tags
         # return self.rrn_dict_items[index], self.rrn_dict_times[index], self.rrn_dict_ratings[index]
 

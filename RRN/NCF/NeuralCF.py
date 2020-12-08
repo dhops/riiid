@@ -1,6 +1,6 @@
 import torch
 
-from layer import FeaturesEmbedding, MultiLayerPerceptron
+from .layer import FeaturesEmbedding, MultiLayerPerceptron
 
 
 class NeuralCollaborativeFiltering(torch.nn.Module):

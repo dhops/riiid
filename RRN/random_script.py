@@ -23,3 +23,17 @@ for k, v in tag_dict.items():
 print(m)
 print(ind)
 print(tag_dict[ind])
+
+
+
+q_list = []
+for k, v in tag_dict.items():
+	q_list.append(k)
+
+import numpy as np
+import pandas as pd
+import time
+import sys
+import pickle
+with open('../input/datasetNCF.pkl', 'rb') as f: 
+    data = pickle.load(f)

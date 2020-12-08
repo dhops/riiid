@@ -15,25 +15,25 @@ class UserTemp(nn.Module):
     def __init__(self, embed_dim, hidden_dim, questionset_size, tagset_size):
         super(UserTemp, self).__init__()
 
-        self.dataset = dataset
-
         self.hidden_dim = hidden_dim
+        self.embed_dim = embed_dim
 
-        tag_padding_idx = tagset_size + 1
+        q_padding_idx = questionset_size
+        tag_padding_idx = tagset_size
 
-        self.embed_q = nn.Embedding(questionset_size+1, embed_dim, padding_idx=0)
-        self.embed_t = nn.Embedding(tagset_size+1, embed_dim, padding_idx=tag_padding_idx)
-        # self.embed = nn.Linear(embed_dim + 3, embed_dim, bias=False) # +3 for newbie, timestep_prev, timestep
+        self.embed_q = nn.Embedding(questionset_size+1, self.embed_dim, padding_idx=q_padding_idx)
+        self.embed_t = nn.Embedding(tagset_size+1, self.embed_dim, padding_idx=tag_padding_idx)
+        # self.embed = nn.Linear(embed_dim + 3, embed_dim, bias=False) 
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(embed_dim, hidden_dim)
+        self.lstm = nn.LSTM(embed_dim*2 + 3, hidden_dim) # +3 for newbie, timestep_prev, timestep
         self.hidden2label = nn.Linear(hidden_dim, 1)
 
         # The linear layer that maps from hidden state space to tag space
         # self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
 
-    def forward(self, questions, timestamps):
+    def forward(self, questions, timestamps, tags):
         timestamps = timestamps.unsqueeze(2)
         prev_timestamps = timestamps.clone()
         prev_timestamps[:,1:] = timestamps[:,:-1]
@@ -43,8 +43,11 @@ class UserTemp(nn.Module):
         newbie[:,0] = 1                   # TEMPORARY, CHANGE FOR BROKEN-UP SEQUENCES LATER
 
         embed_qs = self.embed_q(questions)
+        embed_ts = self.embed_t(tags)
 
-        embeds = torch.cat((embed_qs, newbie, prev_timestamps, timestamps),dim=2)
+        embed_ts = torch.sum(embed_ts, dim=2)
+
+        embeds = torch.cat((embed_qs, embed_ts, newbie, prev_timestamps, timestamps), dim=2)
 
         lstm_out, ____ = self.lstm(embeds.float())
 

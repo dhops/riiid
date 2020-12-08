@@ -25,29 +25,10 @@ from RRN.model import *
 # Import the NCF model
 import NCF
 
-# Import the user map and item map
-data_path = '../input/'
-model_path = 'models/'
-
-with open(data_path + 'user_map.pkl', 'rb') as f1:
-    user_map = pickle.load(f1)
-    
-with open(data_path + 'item_map.pkl', 'rb') as f2:
-    item_map = pickle.load(f2)
-
-# Load the NCF model
-n_user = len(user_map)
-n_item = len(item_map)
-field_dims = [n_user , n_item]
-
-print(field_dims)
-
-ncf = NCF.NeuralCollaborativeFiltering(field_dims, embed_dim=16, mlp_dims=(16, 16), dropout=0.5,
-                                            user_field_idx=0,
-                                            item_field_idx=1)
-ncf.load_state_dict(torch.load(model_path + 'ncf.pt', map_location=torch.device('cpu')))
-ncf.eval()
-
+n_item = 13522
+n_tag = 188
+q_padding_idx = n_item
+tag_padding_idx = n_tag
 
 # Load data for RRN
 
@@ -65,7 +46,7 @@ def get_dataset(name, path):
 
 
 def pad_collate(batch):
-  (users, questions, times, targets) = zip(*batch)
+  (users, questions, times, targets, tags) = zip(*batch)
   # print(len(questions))
   # print(questions[0])
   # TEMPORARILY CUTTING LENGTH IN DATASET
@@ -85,11 +66,12 @@ def pad_collate(batch):
   # times = torch.tensor(times, dtype=torch.float)
   # targets = torch.tensor(np.asarray(targets, dtype=np.int8), dtype=torch.int32)
 
-  questions_pad = pad_sequence(questions, batch_first=True, padding_value=0)
+  questions_pad = pad_sequence(questions, batch_first=True, padding_value=q_padding_idx)
   times_pad = pad_sequence(times, batch_first=True, padding_value=0)
   targets_pad = pad_sequence(targets, batch_first=True, padding_value=0)
+  tags_pad = pad_sequence(tags, batch_first=True, padding_value=tag_padding_idx)
 
-  return users, questions_pad, times_pad, targets_pad, q_lens, t_lens
+  return users, questions_pad, times_pad, targets_pad, tags_pad, q_lens, t_lens
 
 
 def train(model, optimizer, data_loader, criterion, device, log_interval=100):
@@ -108,12 +90,12 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
 
     max_seq_len = 200
 
-    for k, (users, questions, times, targets, q_lens, _) in enumerate(data_loader):
+    for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
         questions, times, targets = questions.to(device), times.to(device), targets.to(device)
 
         batch_size = questions.shape[0]
 
-        y = model(questions, times)
+        y = model(questions, times, tags)
 
         ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long)
 
@@ -171,12 +153,13 @@ def test(model, data_loader, device):
     max_seq_len = 200
 
     with torch.no_grad():
-        for k, (users, questions, times, targets, q_lens, _) in enumerate(data_loader):
-            questions, times, targets = questions.to(device), times.to(device), targets.to(device)
+        for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
+
+            questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
             batch_size = questions.shape[0]
 
-            y = model(questions, times)
+            y = model(questions, times, tags)
 
             ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long)
 
@@ -223,7 +206,6 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     :param save_dir: Directory of the saved model
     :return: Saved model with logged AUC results
     """
-    device = torch.device(device)
 
     # Get the dataset
     dataset = get_dataset(dataset_name, dataset_path)
@@ -246,7 +228,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
-    model = UserTemp(embed_dim=10, hidden_dim=10, questionset_size=n_item, tagset_size=187)
+    model = UserTemp(embed_dim=10, hidden_dim=10, questionset_size=n_item, tagset_size=n_tag)
 
     if pretrained:
         print("Loading pre-trained model...")
@@ -301,13 +283,40 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--batch_size', type=int, default=50)
     parser.add_argument('--weight_decay', type=float, default=1e-6)
-    parser.add_argument('--device', default='cpu')
+    # parser.add_argument('--device', default='cpu')
     parser.add_argument('--save_dir', default='models')
     parser.add_argument('--pretrained', type=str, default=None)
     args = parser.parse_args()
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    # Import the user map and item map
+    data_path = '../input/'
+    model_path = 'models/'
+
+    with open(data_path + 'user_map.pkl', 'rb') as f:
+        user_map = pickle.load(f)
+        
+    # with open(data_path + 'item_map.pkl', 'rb') as f2:
+    #     item_map = pickle.load(f2)
+
+    # Load the NCF model
+    n_user = len(user_map)
+    print(n_user)
+
+    field_dims = [n_user , n_item + 1]
+
+    print(field_dims)
+
+    ncf = NCF.NeuralCollaborativeFiltering(field_dims, embed_dim=16, mlp_dims=(16, 16), dropout=0.5,
+                                                user_field_idx=0,
+                                                item_field_idx=1)
+    ncf.load_state_dict(torch.load(model_path + 'ncf.pt', map_location=device))
+    ncf.eval()
+
     main(args.dataset_name, args.dataset_path, args.model_name, args.epoch, args.learning_rate,
-         args.batch_size, args.weight_decay, args.device, args.save_dir, args.pretrained)
+         args.batch_size, args.weight_decay, device, args.save_dir, args.pretrained)
 
 
 
