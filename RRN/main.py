@@ -91,34 +91,20 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
     max_seq_len = 200
 
     for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
-        questions, times, targets = questions.to(device), times.to(device), targets.to(device)
+        questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
         batch_size = questions.shape[0]
 
         y = model(questions, times, tags)
 
-        ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long)
-
-        # print(questions.shape)
+        ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long).to(device)
 
         for i in range(batch_size):
-            for j in range(max_seq_len):
-                ncf_inputs[i*j + j][0] = users[i]
-                ncf_inputs[i*j + j][1] = questions[i,j]
-
-        # print(ncf_inputs[:5])
+                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 0] = users[i]
+                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 1] = questions[i]
 
         ncf_outputs = ncf(ncf_inputs).detach()
-        # print(ncf_outputs.shape)
-        # print(y.shape)
-        # print(targets.shape)
-        # print(targets[0])
-
-        # print(torch.max(ncf_outputs))
-        # print(torch.min(ncf_outputs))
-        # print(torch.max(y))
-        # print(torch.min(y))
-
+        
         total_output = torch.clamp(y + ncf_outputs.reshape(batch_size,max_seq_len), 0, 1)
 
         # IS THIS CORRECT????
@@ -161,13 +147,12 @@ def test(model, data_loader, device):
 
             y = model(questions, times, tags)
 
-            ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long)
+            # NEW METHOD FOR NCF INPUTS
+            ncf_inputs = torch.zeros(batch_size*max_seq_len, 2, dtype=torch.long).to(device)
 
             for i in range(batch_size):
-                for j in range(max_seq_len):
-                    ncf_inputs[i*j + j][0] = users[i]
-                    ncf_inputs[i*j + j][1] = questions[i,j]
-
+                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 0] = users[i]
+                ncf_inputs[i*max_seq_len:(i+1)*max_seq_len, 1] = questions[i]
 
             ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,max_seq_len)
 
@@ -229,6 +214,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     # Get the model
     # model = get_model(model_name, dataset).to(device)
     model = UserTemp(embed_dim=10, hidden_dim=10, questionset_size=n_item, tagset_size=n_tag)
+    model.to(device)
 
     if pretrained:
         print("Loading pre-trained model...")
@@ -313,6 +299,7 @@ if __name__ == '__main__':
                                                 user_field_idx=0,
                                                 item_field_idx=1)
     ncf.load_state_dict(torch.load(model_path + 'ncf.pt', map_location=device))
+    ncf.to(device)
     ncf.eval()
 
     main(args.dataset_name, args.dataset_path, args.model_name, args.epoch, args.learning_rate,
