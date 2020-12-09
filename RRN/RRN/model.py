@@ -53,7 +53,7 @@ class UserTemp(nn.Module):
 
         user_temp_contribution = self.hidden2label(lstm_out).squeeze()
 
-        out = torch.tanh(user_temp_contribution)
+        out = torch.sigmoid(user_temp_contribution)
         
         return out
 
@@ -85,3 +85,5 @@ class UserTemp(nn.Module):
 #             sample = self.data[self.data['user'] == idx]
 
 #         return sample
+
+
