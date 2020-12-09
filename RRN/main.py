@@ -99,19 +99,19 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
         y = model(questions, times, tags)
 
         ####### NEW METHOD FOR NCF INPUTS
-        # ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
+        ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
 
-        # for i in range(batch_size):
-        #     start_idx = i*max_seq_len
-        #     end_idx = start_idx + seq_len
-        #     ncf_inputs[start_idx:end_idx, 0] = users[i]
-        #     ncf_inputs[start_idx:end_idx, 1] = questions[i]
+        for i in range(batch_size):
+            start_idx = i*max_seq_len
+            end_idx = start_idx + seq_len
+            ncf_inputs[start_idx:end_idx, 0] = users[i]
+            ncf_inputs[start_idx:end_idx, 1] = questions[i]
 
-        # ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
+        ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
         
-        # total_output = torch.clamp(y + ncf_outputs, 0, 1)
+        total_output = torch.clamp(y + ncf_outputs, 0, 1)
         ######
-        total_output = y
+        # total_output = y
         ######
 
         # IS THIS CORRECT????
@@ -158,20 +158,20 @@ def test(model, data_loader, device):
             y = model(questions, times, tags)
 
             # NEW METHOD FOR NCF INPUTS
-            # ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
+            ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
 
-            # for i in range(batch_size):
-            #     start_idx = i*max_seq_len
-            #     end_idx = start_idx + seq_len
-            #     ncf_inputs[start_idx:end_idx, 0] = users[i]
-            #     ncf_inputs[start_idx:end_idx, 1] = questions[i]
+            for i in range(batch_size):
+                start_idx = i*max_seq_len
+                end_idx = start_idx + seq_len
+                ncf_inputs[start_idx:end_idx, 0] = users[i]
+                ncf_inputs[start_idx:end_idx, 1] = questions[i]
 
-            # ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
+            ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
 
-            # total_output = torch.clamp(y + ncf_outputs, 0, 1)
+            total_output = torch.clamp(y + ncf_outputs, 0, 1)
 
             ######
-            total_output = y
+            # total_output = y
             ######
 
             # IS THIS CORRECT????
@@ -179,7 +179,7 @@ def test(model, data_loader, device):
             outputs = torch.masked_select(total_output, mask)
             targets = torch.masked_select(targets.float().squeeze(), mask)
 
-            # ncf_predicts.extend(torch.masked_select(ncf_outputs, mask).tolist())
+            ncf_predicts.extend(torch.masked_select(ncf_outputs, mask).tolist())
             predicts.extend(outputs.tolist())
             tgts.extend(targets.tolist())
 
@@ -188,8 +188,8 @@ def test(model, data_loader, device):
 
 
     # Return AUC score between predicted ratings and actual ratings
-    # print('ncf roc:')
-    # print(roc_auc_score(tgts, ncf_predicts))
+    print('ncf roc:')
+    print(roc_auc_score(tgts, ncf_predicts))
     return roc_auc_score(tgts, predicts)
 
 
@@ -230,7 +230,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
-    model = UserTemp(embed_dim=10, hidden_dim=10, questionset_size=n_item, tagset_size=n_tag)
+    model = UserTemp(embed_dim=10, hidden_dim=20, questionset_size=n_item, tagset_size=n_tag)
     model.to(device)
 
     if pretrained:
@@ -247,9 +247,9 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     # wandb.watch(model, log="all")
 
     # Test the Test loop
-    # valid_auc = test(model, valid_data_loader, device)
+    valid_auc = test(model, valid_data_loader, device)
     # Log the epochs and AUC on the validation set
-    # print('epoch: -1 validation: auc:', valid_auc)
+    print('epoch: -1 validation: auc:', valid_auc)
 
     # Loop through pre-defined number of epochs
     for epoch_i in range(epoch):

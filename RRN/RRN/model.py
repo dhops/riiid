@@ -27,7 +27,7 @@ class UserTemp(nn.Module):
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(embed_dim*2 + 3, hidden_dim) # +3 for newbie, timestep_prev, timestep
+        self.lstm = nn.LSTM(input_size=embed_dim*2 + 3, hidden_size=hidden_dim, num_layers=2) # +3 for newbie, timestep_prev, timestep
         self.hidden2label = nn.Linear(hidden_dim, 1)
 
         # The linear layer that maps from hidden state space to tag space
@@ -53,7 +53,7 @@ class UserTemp(nn.Module):
 
         user_temp_contribution = self.hidden2label(lstm_out).squeeze()
 
-        out = torch.sigmoid(user_temp_contribution)
+        out = torch.tanh(user_temp_contribution)
         
         return out
 
@@ -85,5 +85,3 @@ class UserTemp(nn.Module):
 #             sample = self.data[self.data['user'] == idx]
 
 #         return sample
-
-
