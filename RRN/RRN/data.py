@@ -28,6 +28,7 @@ class RRNDataset(torch.utils.data.Dataset):
         tagset_size = 188
         tag_padding_idx = tagset_size
         max_tags = 6
+        self.max_seq_len = 100
 
         self.tags = torch.ones((len(self.rrn_dict_tags), max_tags), dtype=torch.long) * tag_padding_idx
         for k, v in self.rrn_dict_tags.items():
@@ -74,11 +75,11 @@ class RRNDataset(torch.utils.data.Dataset):
         targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[index]))
         tags = self.tags[qs]
 
-        if len(questions) > 200:
-            questions = questions[:200]
-            times = times[:200]
-            targets = targets[:200]
-            tags = tags[:200,:]
+        if len(questions) > self.max_seq_len:
+            questions = questions[:self.max_seq_len:]
+            times = times[:self.max_seq_len:]
+            targets = targets[:self.max_seq_len:]
+            tags = tags[:self.max_seq_len:,:]
         return user, questions, times, targets, tags
         # return self.rrn_dict_items[index], self.rrn_dict_times[index], self.rrn_dict_ratings[index]
 
