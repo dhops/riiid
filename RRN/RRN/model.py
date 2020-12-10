@@ -19,7 +19,7 @@ class UserTemp(nn.Module):
         self.embed_dim = embed_dim
         self.base = base
 
-        print(self.base)
+        print("Base model: ", self.base)
 
         q_padding_idx = questionset_size
         tag_padding_idx = tagset_size
@@ -31,7 +31,7 @@ class UserTemp(nn.Module):
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
         self.lstm = nn.LSTM(input_size=embed_dim*2 + 3, hidden_size=hidden_dim, num_layers=2) # +3 for newbie, timestep_prev, timestep
-        self.hidden2label = nn.Linear(hidden_dim, 1)
+        self.output = nn.Linear(hidden_dim, 1)
 
         # The linear layer that maps from hidden state space to tag space
         # self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
@@ -54,15 +54,41 @@ class UserTemp(nn.Module):
 
         lstm_out, ____ = self.lstm(embeds.float())
 
-        user_temp_contribution = self.hidden2label(lstm_out).squeeze()
+        user_temp_contribution = self.output(lstm_out).squeeze()
 
         if self.base:
             out = torch.tanh(user_temp_contribution)
         else:
             out = torch.sigmoid(user_temp_contribution)
-        
+
         return out
 
+    def forward_combined(self, questions, timestamps, tags, base_model_outputs):
+        timestamps = timestamps.unsqueeze(2)
+        prev_timestamps = timestamps.clone()
+        prev_timestamps[:,1:] = timestamps[:,:-1]
+        prev_timestamps[:,0] = timestamps[:,0]
+
+        newbie = torch.zeros_like(timestamps)
+        newbie[:,0] = 1                   # TEMPORARY, CHANGE FOR BROKEN-UP SEQUENCES LATER
+
+        embed_qs = self.embed_q(questions)
+        embed_ts = self.embed_t(tags)
+
+        embed_ts = torch.sum(embed_ts, dim=2)
+
+        embeds = torch.cat((embed_qs, embed_ts, newbie, prev_timestamps, timestamps), dim=2)
+
+        lstm_out, ____ = self.lstm(embeds.float())
+
+        user_temp_contribution = self.output(lstm_out).squeeze()
+        
+        out = torch.sigmoid(user_temp_contribution + base_model_outputs)
+
+        return out
+
+
+        
 # class CombinedModel(nn.Module):
 
 

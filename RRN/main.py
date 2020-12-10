@@ -107,14 +107,15 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
     for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
         questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
-        y = model(questions, times, tags)
+        # y = model(questions, times, tags)
 
         if base:
             base_model_inputs = prep_mf_inputs(users, questions)
-            base_model_outputs = base_model(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
-            total_output = torch.clamp(y + base_model_outputs, 0, 1)
+            base_model_outputs = base_model.forward_no_sigmoid(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
+            # total_output = torch.clamp(y + base_model_outputs, 0, 1)
+            total_output = model.forward_combined(questions, times, tags, base_model_outputs)
         else:
-            total_output = y
+            total_output = model(questions, times, tags)
 
         # IS THIS CORRECT????
         mask = questions != q_padding_idx
@@ -152,14 +153,15 @@ def test(model, data_loader, device, base):
 
             questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
-            y = model(questions, times, tags)
+            # y = model(questions, times, tags)
 
             if base:
                 base_model_inputs = prep_mf_inputs(users, questions)
                 base_model_outputs = base_model(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
-                total_output = torch.clamp(y + base_model_outputs, 0, 1)
+                # total_output = torch.clamp(y + base_model_outputs, 0, 1)
+                total_output = model.forward_combined(questions, times, tags, base_model_outputs)
             else:
-                total_output = y
+                total_output = model(questions, times, tags)
             
             # IS THIS CORRECT????
             mask = questions != q_padding_idx

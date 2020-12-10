@@ -32,3 +32,16 @@ class NeuralCollaborativeFiltering(torch.nn.Module):
         x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
         return torch.sigmoid(x)
+
+    def forward_no_sigmoid(self, x):
+        """
+        :param x: Long tensor of size ``(batch_size, num_user_fields)``
+        """
+        x = self.embedding(x)
+        user_x = x[:, self.user_field_idx].squeeze(1)
+        item_x = x[:, self.item_field_idx].squeeze(1)
+        x = self.mlp(x.view(-1, self.embed_output_dim))
+        gmf = user_x * item_x
+        x = torch.cat([gmf, x], dim=1)
+        x = self.fc(x).squeeze(1)
+        return x
