@@ -12,11 +12,14 @@ import torch.optim as optim
 
 
 class UserTemp(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, questionset_size, tagset_size):
+    def __init__(self, embed_dim, hidden_dim, questionset_size, tagset_size, base):
         super(UserTemp, self).__init__()
 
         self.hidden_dim = hidden_dim
         self.embed_dim = embed_dim
+        self.base = base
+
+        print(self.base)
 
         q_padding_idx = questionset_size
         tag_padding_idx = tagset_size
@@ -53,7 +56,10 @@ class UserTemp(nn.Module):
 
         user_temp_contribution = self.hidden2label(lstm_out).squeeze()
 
-        out = torch.tanh(user_temp_contribution)
+        if self.base:
+            out = torch.tanh(user_temp_contribution)
+        else:
+            out = torch.sigmoid(user_temp_contribution)
         
         return out
 

@@ -74,7 +74,23 @@ def pad_collate(batch):
   return users, questions_pad, times_pad, targets_pad, tags_pad, q_lens, t_lens
 
 
-def train(model, optimizer, data_loader, criterion, device, log_interval=100):
+def prep_mf_inputs(users, questions):
+    batch_size = questions.shape[0]
+    seq_len = questions.shape[1]
+
+    inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
+
+    for i in range(batch_size):
+        start_idx = i*seq_len
+        end_idx = start_idx + seq_len
+        inputs[start_idx:end_idx, 0] = users[i]
+        inputs[start_idx:end_idx, 1] = questions[i]
+
+    return inputs
+
+
+
+def train(model, optimizer, data_loader, criterion, device, log_interval=100, base=None):
     """
     Train the model
     :param model: choice of model
@@ -88,31 +104,17 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
     model.train()
     total_loss = 0
 
-    max_seq_len = 200
-
     for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
         questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
-        batch_size = questions.shape[0]
-        seq_len = questions.shape[1]
-
         y = model(questions, times, tags)
 
-        ####### NEW METHOD FOR NCF INPUTS
-        ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
-
-        for i in range(batch_size):
-            start_idx = i*max_seq_len
-            end_idx = start_idx + seq_len
-            ncf_inputs[start_idx:end_idx, 0] = users[i]
-            ncf_inputs[start_idx:end_idx, 1] = questions[i]
-
-        ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
-        
-        total_output = torch.clamp(y + ncf_outputs, 0, 1)
-        ######
-        # total_output = y
-        ######
+        if base:
+            base_model_inputs = prep_mf_inputs(users, questions)
+            base_model_outputs = base_model(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
+            total_output = torch.clamp(y + base_model_outputs, 0, 1)
+        else:
+            total_output = y
 
         # IS THIS CORRECT????
         mask = questions != q_padding_idx
@@ -124,16 +126,16 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100):
         model.zero_grad()
         loss.backward()
         optimizer.step()
-        total_loss += loss.item()
 
-        # Log the total loss for every 1000 runs
+        total_loss += loss.item()
+        # Log the total loss for every log_interval runs
         if (k + 1) % log_interval == 0:
             print('iteration: ', k, '    - loss:', total_loss / log_interval)
             total_loss = 0
 
         # wandb.log({"Total Loss": total_loss})
 
-def test(model, data_loader, device):
+def test(model, data_loader, device, base):
     """
     Evaluate the model
     :param model: choice of model
@@ -143,58 +145,40 @@ def test(model, data_loader, device):
     """
     # Step into evaluation mode
     model.eval()
-    tgts, predicts, ncf_predicts = list(), list(), list()
-
-    max_seq_len = 200
+    tgts, predicts, base_model_predicts = list(), list(), list()
 
     with torch.no_grad():
         for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
 
             questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
-            batch_size = questions.shape[0]
-            seq_len = questions.shape[1]
-
             y = model(questions, times, tags)
 
-            # NEW METHOD FOR NCF INPUTS
-            ncf_inputs = torch.zeros(batch_size*seq_len, 2, dtype=torch.long).to(device)
-
-            for i in range(batch_size):
-                start_idx = i*max_seq_len
-                end_idx = start_idx + seq_len
-                ncf_inputs[start_idx:end_idx, 0] = users[i]
-                ncf_inputs[start_idx:end_idx, 1] = questions[i]
-
-            ncf_outputs = ncf(ncf_inputs).detach().reshape(batch_size,seq_len)
-
-            total_output = torch.clamp(y + ncf_outputs, 0, 1)
-
-            ######
-            # total_output = y
-            ######
-
+            if base:
+                base_model_inputs = prep_mf_inputs(users, questions)
+                base_model_outputs = base_model(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
+                total_output = torch.clamp(y + base_model_outputs, 0, 1)
+            else:
+                total_output = y
+            
             # IS THIS CORRECT????
             mask = questions != q_padding_idx
             outputs = torch.masked_select(total_output, mask)
             targets = torch.masked_select(targets.float().squeeze(), mask)
 
-            ncf_predicts.extend(torch.masked_select(ncf_outputs, mask).tolist())
+            # base_model_predicts.extend(torch.masked_select(base_model_outputs, mask).tolist())
             predicts.extend(outputs.tolist())
             tgts.extend(targets.tolist())
 
             if (k + 1) % 10 == 0:
                 print('test iteration: ', k)
-
-
     # Return AUC score between predicted ratings and actual ratings
-    print('ncf roc:')
-    print(roc_auc_score(tgts, ncf_predicts))
+    # print('base model roc: ', roc_auc_score(tgts, base_model_predicts))
     return roc_auc_score(tgts, predicts)
 
 
 def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
-         batch_size, weight_decay, device, save_dir, pretrained):
+         batch_size, weight_decay, device, save_dir, pretrained, base, log_interval):
     """
     Main function
     :param dataset_name: Choice of the dataset (MovieLens1M)
@@ -206,6 +190,8 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     :param weight_decay: Weight decay
     :param device: CHoice of device
     :param save_dir: Directory of the saved model
+    :param pretrained: pre-trained model to continue training
+    :param base: base model type (None, MF, NCF, etc.)
     :return: Saved model with logged AUC results
     """
 
@@ -230,7 +216,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
-    model = UserTemp(embed_dim=10, hidden_dim=20, questionset_size=n_item, tagset_size=n_tag)
+    model = UserTemp(embed_dim=10, hidden_dim=20, questionset_size=n_item, tagset_size=n_tag, base=base)
     model.to(device)
 
     if pretrained:
@@ -247,23 +233,23 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     # wandb.watch(model, log="all")
 
     # Test the Test loop
-    valid_auc = test(model, valid_data_loader, device)
+    # valid_auc = test(model, valid_data_loader, device, base)
     # Log the epochs and AUC on the validation set
-    print('epoch: -1 validation: auc:', valid_auc)
+    # print('epoch: -1 validation: auc:', valid_auc)
 
     # Loop through pre-defined number of epochs
     for epoch_i in range(epoch):
         # Perform training on the train set
-        train(model, optimizer, train_data_loader, criterion, device)
+        train(model, optimizer, train_data_loader, criterion, device, log_interval, base)
         torch.save(model.state_dict(), f'{save_dir}/{model_name}-{epoch_i}.pt')
         # Perform evaluation on the validation set
-        valid_auc = test(model, valid_data_loader, device)
+        valid_auc = test(model, valid_data_loader, device, base)
         # Log the epochs and AUC on the validation set
         print('epoch:', epoch_i, 'validation: auc:', valid_auc)
         # wandb.log({"Validation AUC": valid_auc})
 
     # Perform evaluation on the test set
-    test_auc = test(model, test_data_loader, device)
+    test_auc = test(model, test_data_loader, device, base)
     # Log the final AUC on the test set
     print('test auc:', test_auc)
     # wandb.log({"Test AUC": test_auc})
@@ -289,6 +275,8 @@ if __name__ == '__main__':
     # parser.add_argument('--device', default='cpu')
     parser.add_argument('--save_dir', default='models')
     parser.add_argument('--pretrained', type=str, default=None)
+    parser.add_argument('--base', type=str, default=None)
+    parser.add_argument('--log_interval', type=int, default=100)
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -304,23 +292,24 @@ if __name__ == '__main__':
     # with open(data_path + 'item_map.pkl', 'rb') as f2:
     #     item_map = pickle.load(f2)
 
-    # Load the NCF model
     n_user = len(user_map)
     print(n_user)
 
-    field_dims = [n_user , n_item + 1]
+    # Load the base model
+    if args.base == 'ncf':
+        field_dims = [n_user , n_item + 1]
 
-    print(field_dims)
+        print(field_dims)
 
-    ncf = NCF.NeuralCollaborativeFiltering(field_dims, embed_dim=16, mlp_dims=(16, 16), dropout=0.5,
+        base_model = NCF.NeuralCollaborativeFiltering(field_dims, embed_dim=16, mlp_dims=(16, 16), dropout=0.5,
                                                 user_field_idx=0,
                                                 item_field_idx=1)
-    ncf.load_state_dict(torch.load(model_path + 'ncf.pt', map_location=device))
-    ncf.to(device)
-    ncf.eval()
+        base_model.load_state_dict(torch.load(model_path + 'ncf.pt', map_location=device))
+        base_model.to(device)
+        base_model.eval()
 
     main(args.dataset_name, args.dataset_path, args.model_name, args.epoch, args.learning_rate,
-         args.batch_size, args.weight_decay, device, args.save_dir, args.pretrained)
+         args.batch_size, args.weight_decay, device, args.save_dir, args.pretrained, args.base, args.log_interval)
 
 
 
