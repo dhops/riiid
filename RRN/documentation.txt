@@ -1,0 +1,43 @@
+I started with the base NCF class and worked on adding an RRN to that. The RRN consists of an LSTM that is trained to improve on the prediction of the NCF. 
+
+I ran into many issues with this implementation. The biggest issue is that the NCF is quite successful in prediction, so the scope for the RNN component is quite small. I think that that interfered with the training. 
+
+
+
+
+RRNCF
+
+The idea with the RRNCF (Recurrent Recommender Neural Collaborative Filtering) is to use the RNN component as a more sophisticated embedding layer for users. Instead of embedding users with the traditional linear embedding, we use an RNN trained to encode the user's knowledge. For each user-question query, the RNN receives the past history of the users questions and answers. The output of the RNN is then given as the "user embedding" to the NCF along with a traditional question embedding. These embeddings are shared by the GMF and MLP modules of the NCF. 
+
+But initial training just set all LSTM hidden states to zero after the first timestep.
+
+Eventually, I figured out that this was because the gaps were such large values that they were overwhelming the other inputs, although I'm not sure why those went to zero.
+
+Tried just normalizing each batch of gaps.
+
+Then normalized all gaps.
+
+Then played around with inputting also user_ids (embedded). First tried inputting them to both the GMF and the MLP. The results are the best yet. It runs much slower, but with very good epoch 1 results.
+
+Next try with tag embedding also inputted to MLP.
+
+BUT user embedding is almost ALL of the parameters of the model (hence could become slow and overtrained??)
+
+Got rid of user embeddings again, and tried with packed sequences to speed things up and allow for longer LSTM sequences. Performed slightly worse than before (but with longer sequences, so maybe that affects it)
+
+Downloaded updated data from riiid and worked on incorporating lectures.
+
+After a lot of effort, incorporated lectures by just changing lecture id to question padding index and keeping only lecture tags and treating them as masked "correct answers" for learning the user-knowledge state.
+
+However, the results were not much improved. 
+
+I'd like to try longer lstm hidden states, but I need to get rid of GMF to do that, so first I'll try with MLP only, no GMF.
+
+Then I'll try longer sequences for LSTM.
+
+Oh shit. I just discovered that 70,000,000 of the 100,000,000 interactions are beyond 200 timesteps, which means I haven't used them. And they should be the MORE predictable ones.
+
+But first: try without GMF and without GMF and longer LSTM hidden state
+
+Without GMF did just as well (although, oddly, the losses looked worse).
+

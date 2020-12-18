@@ -1,3 +1,4 @@
+*.pyc
 /archive
 /input
 /riiideducation
@@ -6,4 +7,4 @@
 __*
 mprof*
 *.png
-
+*pycache*

@@ -107,8 +107,6 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
     for k, (users, questions, times, targets, tags, q_lens, _) in enumerate(data_loader):
         questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
-        # y = model(questions, times, tags)
-
         if base:
             base_model_inputs = prep_mf_inputs(users, questions)
             base_model_outputs = base_model.forward_no_sigmoid(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
@@ -119,7 +117,6 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
 
         # IS THIS CORRECT????
         mask = questions != q_padding_idx
-
         total_output = torch.masked_select(total_output, mask)
         targets = torch.masked_select(targets.float().squeeze(), mask)
 
@@ -153,11 +150,9 @@ def test(model, data_loader, device, base):
 
             questions, times, targets, tags = questions.to(device), times.to(device), targets.to(device), tags.to(device)
 
-            # y = model(questions, times, tags)
-
             if base:
                 base_model_inputs = prep_mf_inputs(users, questions)
-                base_model_outputs = base_model(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
+                base_model_outputs = base_model.forward_no_sigmoid(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1])
                 # total_output = torch.clamp(y + base_model_outputs, 0, 1)
                 total_output = model.forward_combined(questions, times, tags, base_model_outputs)
             else:
@@ -168,14 +163,18 @@ def test(model, data_loader, device, base):
             outputs = torch.masked_select(total_output, mask)
             targets = torch.masked_select(targets.float().squeeze(), mask)
 
-            # base_model_predicts.extend(torch.masked_select(base_model_outputs, mask).tolist())
             predicts.extend(outputs.tolist())
             tgts.extend(targets.tolist())
 
             if (k + 1) % 10 == 0:
                 print('test iteration: ', k)
+
+            # Optional to check base model performance (alone)
+
+            base_model_predicts.extend(torch.masked_select(base_model(base_model_inputs).detach().reshape(questions.shape[0], questions.shape[1]), mask).tolist())
+
     # Return AUC score between predicted ratings and actual ratings
-    # print('base model roc: ', roc_auc_score(tgts, base_model_predicts))
+    print('base model roc: ', roc_auc_score(tgts, base_model_predicts))
     return roc_auc_score(tgts, predicts)
 
 
@@ -236,7 +235,6 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Test the Test loop
     # valid_auc = test(model, valid_data_loader, device, base)
-    # Log the epochs and AUC on the validation set
     # print('epoch: -1 validation: auc:', valid_auc)
 
     # Loop through pre-defined number of epochs
@@ -247,7 +245,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
         # Perform evaluation on the validation set
         valid_auc = test(model, valid_data_loader, device, base)
         # Log the epochs and AUC on the validation set
-        print('epoch:', epoch_i, 'validation: auc:', valid_auc)
+        print('epoch:', epoch_i + 1, 'validation: auc:', valid_auc)
         # wandb.log({"Validation AUC": valid_auc})
 
     # Perform evaluation on the test set
@@ -295,14 +293,11 @@ if __name__ == '__main__':
     #     item_map = pickle.load(f2)
 
     n_user = len(user_map)
-    print(n_user)
+    print("Number of users (seqeuences): ", n_user)
 
     # Load the base model
     if args.base == 'ncf':
         field_dims = [n_user , n_item + 1]
-
-        print(field_dims)
-
         base_model = NCF.NeuralCollaborativeFiltering(field_dims, embed_dim=16, mlp_dims=(16, 16), dropout=0.5,
                                                 user_field_idx=0,
                                                 item_field_idx=1)

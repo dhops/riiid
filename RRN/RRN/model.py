@@ -30,7 +30,8 @@ class UserTemp(nn.Module):
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(input_size=embed_dim*2 + 3, hidden_size=hidden_dim, num_layers=2) # +3 for newbie, timestep_prev, timestep
+        # self.lstm = nn.LSTM(input_size=embed_dim*2 + 3, hidden_size=hidden_dim, num_layers=1) # +3 for newbie, timestep_prev, timestep
+        self.lstm = nn.LSTM(input_size=embed_dim*2 + 1, hidden_size=hidden_dim, num_layers=1) # +1 for timestep gap
         self.output = nn.Linear(hidden_dim, 1)
 
         # The linear layer that maps from hidden state space to tag space
@@ -38,19 +39,23 @@ class UserTemp(nn.Module):
 
     def forward(self, questions, timestamps, tags):
         timestamps = timestamps.unsqueeze(2)
-        prev_timestamps = timestamps.clone()
-        prev_timestamps[:,1:] = timestamps[:,:-1]
-        prev_timestamps[:,0] = timestamps[:,0]
+        # prev_timestamps = timestamps.clone()
+        # prev_timestamps[:,1:] = timestamps[:,:-1]
+        # prev_timestamps[:,0] = timestamps[:,0]
+        gaps = torch.zeros_like(timestamps)
+        gaps[:,1:] = timestamps[:,1:] - timestamps[:,:-1] #There will be a negative where the padding starts, but I don't think it affects learning
 
-        newbie = torch.zeros_like(timestamps)
-        newbie[:,0] = 1                   # TEMPORARY, CHANGE FOR BROKEN-UP SEQUENCES LATER
+        # newbie = torch.zeros_like(timestamps)
+        # newbie[:,0] = 1                   # TEMPORARY, CHANGE FOR BROKEN-UP SEQUENCES LATER
 
         embed_qs = self.embed_q(questions)
         embed_ts = self.embed_t(tags)
 
         embed_ts = torch.sum(embed_ts, dim=2)
 
-        embeds = torch.cat((embed_qs, embed_ts, newbie, prev_timestamps, timestamps), dim=2)
+        # embeds = torch.cat((embed_qs, embed_ts, newbie, prev_timestamps, timestamps), dim=2)
+        # embeds = torch.cat((embed_qs, embed_ts, newbie, gaps), dim=2)
+        embeds = torch.cat((embed_qs, embed_ts, gaps), dim=2)
 
         lstm_out, ____ = self.lstm(embeds.float())
 
@@ -60,24 +65,21 @@ class UserTemp(nn.Module):
             out = torch.tanh(user_temp_contribution)
         else:
             out = torch.sigmoid(user_temp_contribution)
-
         return out
 
     def forward_combined(self, questions, timestamps, tags, base_model_outputs):
         timestamps = timestamps.unsqueeze(2)
-        prev_timestamps = timestamps.clone()
-        prev_timestamps[:,1:] = timestamps[:,:-1]
-        prev_timestamps[:,0] = timestamps[:,0]
 
-        newbie = torch.zeros_like(timestamps)
-        newbie[:,0] = 1                   # TEMPORARY, CHANGE FOR BROKEN-UP SEQUENCES LATER
+        gaps = torch.zeros_like(timestamps)
+        gaps[:,1:] = timestamps[:,1:] - timestamps[:,:-1] 
+
+        print(gaps[0])
 
         embed_qs = self.embed_q(questions)
         embed_ts = self.embed_t(tags)
 
         embed_ts = torch.sum(embed_ts, dim=2)
-
-        embeds = torch.cat((embed_qs, embed_ts, newbie, prev_timestamps, timestamps), dim=2)
+        embeds = torch.cat((embed_qs, embed_ts, gaps), dim=2)
 
         lstm_out, ____ = self.lstm(embeds.float())
 
@@ -88,7 +90,7 @@ class UserTemp(nn.Module):
         return out
 
 
-        
+
 # class CombinedModel(nn.Module):
 
 

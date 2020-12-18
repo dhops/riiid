@@ -3,6 +3,7 @@ import pandas as pd
 import pickle
 import torch
 import os
+from statistics import mean
 
 class RRNDataset(torch.utils.data.Dataset):
     """
@@ -25,16 +26,17 @@ class RRNDataset(torch.utils.data.Dataset):
         # with open(dataset_path + 'item_map.pkl', 'rb') as f:
         #     self.item_map = pickle.load(f)
 
-        tagset_size = 188
-        tag_padding_idx = tagset_size
-        max_tags = 6
-        self.max_seq_len = 100
+        self.tagset_size = 188
+        self.tag_padding_idx = self.tagset_size
+        self.max_tags = 6
+        self.max_seq_len = 200
 
-        self.tags = torch.ones((len(self.rrn_dict_tags), max_tags), dtype=torch.long) * tag_padding_idx
-        for k, v in self.rrn_dict_tags.items():
-            if type(v) is list:
-                for i in range(len(v)):
-                    self.tags[k, i] = v[i]
+        # print("Processing Tags...")
+        # self.tags = torch.ones((len(self.rrn_dict_tags), max_tags), dtype=torch.long) * tag_padding_idx
+        # for k, v in self.rrn_dict_tags.items():
+        #     if type(v) is list:
+        #         for i in range(len(v)):
+        #             self.tags[k, i] = v[i]
 
 
 
@@ -68,18 +70,20 @@ class RRNDataset(torch.utils.data.Dataset):
         :param index: current index
         :return: the items, timestamps and ratings at current index
         """
-        user = index
-        qs = np.asarray(self.rrn_dict_items[index])
-        questions = torch.from_numpy(qs)
+        user = torch.tensor(index)
+        questions = torch.from_numpy(np.asarray(self.rrn_dict_items[index]))
         times = torch.from_numpy(np.asarray(self.rrn_dict_times[index]))
         targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[index]))
-        tags = self.tags[qs]
+
+        # tags = torch.ones((len(questions), max_tags), dtype=torch.long) * tag_padding_idx
+        tags=np.array([tag+[self.tag_padding_idx]*(self.max_tags-len(tag)) for tag in self.rrn_dict_tags[index]])
+        tags = torch.from_numpy(tags)
 
         if len(questions) > self.max_seq_len:
             questions = questions[:self.max_seq_len:]
             times = times[:self.max_seq_len:]
             targets = targets[:self.max_seq_len:]
             tags = tags[:self.max_seq_len:,:]
-        return user, questions, times, targets, tags
+        return user, questions, times, tags, targets
         # return self.rrn_dict_items[index], self.rrn_dict_times[index], self.rrn_dict_ratings[index]
 
