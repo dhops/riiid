@@ -5,7 +5,7 @@ import pickle
 from torch.nn.utils.rnn import pad_sequence
 from sklearn.metrics import roc_auc_score
 import torch.utils.data
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 # # Import PyTorch Ignite
 # from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
@@ -39,23 +39,22 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path)
+        return RRNDataset(path, truncate=False)
     else:
         raise ValueError('unknown dataset name: ' + name)
 
 
 def pad_collate(batch):
-  (users, questions, times, tags, targets) = zip(*batch)
+  (questions, times, tags, targets) = zip(*batch)
 
   q_lens = [len(q) for q in questions]
 
-  users = torch.tensor(np.asarray(users))
   questions_pad = pad_sequence(questions, batch_first=True, padding_value=q_padding_idx)
   times_pad = pad_sequence(times, batch_first=True, padding_value=0)
   tags_pad = pad_sequence(tags, batch_first=True, padding_value=tag_padding_idx)
   targets_pad = pad_sequence(targets, batch_first=True, padding_value=0)
 
-  return users, questions_pad, times_pad, tags_pad, targets_pad, q_lens
+  return questions_pad, times_pad, tags_pad, targets_pad, q_lens
 
 
 def train(model, optimizer, data_loader, criterion, device, log_interval=100, base=None):
@@ -71,26 +70,51 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
     # Step into train mode
     model.train()
     total_loss = 0
+    log_steps = 0
 
-    for k, (users, questions, times, tags, targets, q_lens) in enumerate(data_loader):
-        users, questions, times, tags, targets = users.to(device), questions.to(device), times.to(device), tags.to(device), targets.to(device)
+    for k, (questions_full, times_full, tags_full, targets_full, q_lens_full) in enumerate(data_loader):
+        h_t = None
+        c_t = None
+        start_idx = 0
+        full_length = questions_full.shape[1]
+        iters = int((full_length-1)/tbptt_length) + 1
 
-        y = model(questions, times, tags, targets, users, q_lens).reshape(questions.shape)
+        print(full_length)
+        print(iters)
 
-        mask = questions != q_padding_idx
-        y = torch.masked_select(y, mask)
-        targets = torch.masked_select(targets.float().squeeze(), mask)
+        for i in range(iters):
+            questions = questions_full[:,start_idx:start_idx+tbptt_length]
+            times = times_full[:,start_idx:start_idx+tbptt_length]
+            tags = tags_full[:,start_idx:start_idx+tbptt_length]
+            targets = targets_full[:,start_idx:start_idx+tbptt_length]
 
-        loss = criterion(y, targets)
-        model.zero_grad()
-        loss.backward()
-        optimizer.step()
+            start_idx += tbptt_length
 
-        total_loss += loss.item()
+            questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
+
+            if h_t is not None:
+                h_t = h_t.detach()
+                c_t = c_t.detach()
+
+            y, h_t, c_t = model.forward_tbptt(questions, times, tags, targets, h_t, c_t)
+
+            y = y.reshape(questions.shape)
+
+            mask = questions != q_padding_idx
+            y = torch.masked_select(y, mask)
+            targets = torch.masked_select(targets.float().reshape(mask.shape), mask)
+
+            loss = criterion(y, targets)
+            model.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+            log_steps += 1
         # Log the total loss for every log_interval runs
-        if (k + 1) % log_interval == 0:
-            print('iteration: ', k, '    - loss:', total_loss / log_interval)
-            total_loss = 0
+            if (log_steps + 1) % log_interval == 0:
+                print('iteration: ', log_steps, '    - loss:', total_loss / log_interval)
+                total_loss = 0
 
         # wandb.log({"Total Loss": total_loss})
 
@@ -107,18 +131,41 @@ def test(model, data_loader, device, base):
     tgts, predicts, base_model_predicts = list(), list(), list()
 
     with torch.no_grad():
-        for k, (users, questions, times, tags, targets, q_lens) in enumerate(data_loader):
-            
-            users, questions, times, tags, targets = users.to(device), questions.to(device), times.to(device), tags.to(device), targets.to(device)
+        for k, (questions_full, times_full, tags_full, targets_full, q_lens_full) in enumerate(data_loader):
+            h_t = None
+            c_t = None
+            start_idx = 0
+            full_length = questions_full.shape[1]
+            iters = int((full_length-1)/tbptt_length) + 1
 
-            y = model(questions, times, tags, targets, users, q_lens).reshape(questions.shape)
+            for i in range(iters):
+                questions = questions_full[:,start_idx:start_idx+tbptt_length]
+                times = times_full[:,start_idx:start_idx+tbptt_length]
+                tags = tags_full[:,start_idx:start_idx+tbptt_length]
+                targets = targets_full[:,start_idx:start_idx+tbptt_length]
 
-            mask = questions != q_padding_idx
-            y = torch.masked_select(y, mask)
-            targets = torch.masked_select(targets.float().squeeze(), mask)
+                start_idx += tbptt_length
+                
+                questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
 
-            predicts.extend(y.tolist())
-            tgts.extend(targets.tolist())
+                if h_t is not None:
+                    h_t.detach()
+                    c_t.detach()
+
+                y, h_t, c_t = model.forward_tbptt(questions, times, tags, targets, h_t, c_t)
+
+                y = y.reshape(questions.shape)
+
+                mask = questions != q_padding_idx
+
+                y1 = y
+                t1 = targets
+
+                y = torch.masked_select(y, mask)
+                targets = torch.masked_select(targets.float().reshape(mask.shape), mask)
+
+                predicts.extend(y.tolist())
+                tgts.extend(targets.tolist())
 
             if (k + 1) % 10 == 0:
                 print('test iteration: ', k)
@@ -148,21 +195,31 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     # Get the dataset
     dataset = get_dataset(dataset_name, dataset_path)
     # Split the data into 80% train, 10% validation, and 10% test
-    train_length = int(len(dataset) * 0.8)
-    valid_length = int(len(dataset) * 0.1)
-    test_length = len(dataset) - train_length - valid_length
+    # train_length = int(len(dataset) * 0.8)
+    # valid_length = int(len(dataset) * 0.1)
+    # test_length = len(dataset) - train_length - valid_length
 
-    print("Training set length: ", train_length)
-    print("Validation set length: ", valid_length)
-    print("Test set length: ", test_length)
+    # print("Training set length: ", train_length)
+    # print("Validation set length: ", valid_length)
+    # print("Test set length: ", test_length)
 
-    train_dataset, valid_dataset, test_dataset = torch.utils.data.random_split(
-        dataset, (train_length, valid_length, test_length))
+    # train_dataset, valid_dataset, test_dataset = torch.utils.data.random_split(
+    #     dataset, (train_length, valid_length, test_length))
+    print("Dataset length: ", len(dataset))
+
+    # train_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
+    valid_indices = np.sort(np.random.permutation(len(dataset))[:3000]).tolist()
+    test_indices = np.sort(np.random.permutation(len(dataset))[:3000]).tolist()
+
+    # train_dataset = Subset(dataset, train_indices)
+    train_dataset = dataset
+    valid_dataset = Subset(dataset, valid_indices)
+    test_dataset = Subset(dataset, test_indices)
 
     # Instantiate data loader classes for train, validation, and test sets
-    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=pad_collate, num_workers=8)
-    valid_data_loader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=pad_collate, num_workers=8)
-    test_data_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=pad_collate, num_workers=8)
+    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate, num_workers=4, drop_last=True)
+    valid_data_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate, num_workers=1, drop_last=True)
+    test_data_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate, num_workers=1, drop_last=True)
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
@@ -219,8 +276,8 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', default='models/')
     parser.add_argument('--model_name', default='rrn')
     parser.add_argument('--epoch', type=int, default=3)
-    parser.add_argument('--learning_rate', type=float, default=0.001)
-    parser.add_argument('--batch_size', type=int, default=50)
+    parser.add_argument('--learning_rate', type=float, default=0.0001)
+    parser.add_argument('--batch_size', type=int, default=10)
     parser.add_argument('--weight_decay', type=float, default=1e-6)
     # parser.add_argument('--device', default='cpu')
     parser.add_argument('--save_dir', default='models')

@@ -10,7 +10,7 @@ class RRNDataset(torch.utils.data.Dataset):
         RRN Riiid Full Dataset
     """
 
-    def __init__(self, dataset_path, sep=',', engine='python', header=None):
+    def __init__(self, dataset_path, truncate=True):
         # Read the data into a Pandas dataframe
         # data = pd.read_csv(dataset_path, sep=sep, engine=engine, header=header).to_numpy()[:, :3]
         # full_data = np.load(dataset_path)
@@ -26,10 +26,20 @@ class RRNDataset(torch.utils.data.Dataset):
         # with open(dataset_path + 'item_map.pkl', 'rb') as f:
         #     self.item_map = pickle.load(f)
 
+        self.truncate = truncate
         self.tagset_size = 188
         self.tag_padding_idx = self.tagset_size
         self.max_tags = 6
         self.max_seq_len = 200
+
+        user_counts = np.array([len(qs) for qs in self.rrn_dict_items.values()])
+        # print(user_counts[:10])
+
+        # sort for mini-batching of similar sizes. make user_counts negative for descending order
+        self.sort_index = np.argsort(user_counts)
+        
+        # print(sort_index[:10])
+        # print(user_counts[sort_index[0]])
 
         # print("Processing Tags...")
         # self.tags = torch.ones((len(self.rrn_dict_tags), max_tags), dtype=torch.long) * tag_padding_idx
@@ -70,20 +80,22 @@ class RRNDataset(torch.utils.data.Dataset):
         :param index: current index
         :return: the items, timestamps and ratings at current index
         """
-        user = torch.tensor(index)
-        questions = torch.from_numpy(np.asarray(self.rrn_dict_items[index]))
-        times = torch.from_numpy(np.asarray(self.rrn_dict_times[index]))
-        targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[index]))
+        user = self.sort_index[index]
+        questions = torch.from_numpy(np.asarray(self.rrn_dict_items[user]))
+        times = torch.from_numpy(np.asarray(self.rrn_dict_times[user]))
+        targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[user]))
 
         # tags = torch.ones((len(questions), max_tags), dtype=torch.long) * tag_padding_idx
-        tags=np.array([tag+[self.tag_padding_idx]*(self.max_tags-len(tag)) for tag in self.rrn_dict_tags[index]])
+        tags=np.array([tag+[self.tag_padding_idx]*(self.max_tags-len(tag)) for tag in self.rrn_dict_tags[user]])
         tags = torch.from_numpy(tags)
 
-        if len(questions) > self.max_seq_len:
-            questions = questions[:self.max_seq_len:]
-            times = times[:self.max_seq_len:]
-            targets = targets[:self.max_seq_len:]
-            tags = tags[:self.max_seq_len:,:]
-        return user, questions, times, tags, targets
+        if self.truncate:
+            if len(questions) > self.max_seq_len:
+                questions = questions[:self.max_seq_len:]
+                times = times[:self.max_seq_len:]
+                targets = targets[:self.max_seq_len:]
+                tags = tags[:self.max_seq_len:,:]
+
+        return questions, times, tags, targets
         # return self.rrn_dict_items[index], self.rrn_dict_times[index], self.rrn_dict_ratings[index]
 

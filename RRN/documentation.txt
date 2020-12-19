@@ -41,3 +41,5 @@ But first: try without GMF and without GMF and longer LSTM hidden state
 
 Without GMF did just as well (although, oddly, the losses looked worse).
 
+Then I modified the dataset to return the users sorted by number of interactions. That allowed me to do efficient TBPTT.
+

@@ -44,17 +44,16 @@ def get_dataset(name, path):
 
 
 def pad_collate(batch):
-  (users, questions, times, tags, targets) = zip(*batch)
+  (questions, times, tags, targets) = zip(*batch)
 
   q_lens = [len(q) for q in questions]
 
-  users = torch.tensor(np.asarray(users))
   questions_pad = pad_sequence(questions, batch_first=True, padding_value=q_padding_idx)
   times_pad = pad_sequence(times, batch_first=True, padding_value=0)
   tags_pad = pad_sequence(tags, batch_first=True, padding_value=tag_padding_idx)
   targets_pad = pad_sequence(targets, batch_first=True, padding_value=0)
 
-  return users, questions_pad, times_pad, tags_pad, targets_pad, q_lens
+  return questions_pad, times_pad, tags_pad, targets_pad, q_lens
 
 
 def train(model, optimizer, data_loader, criterion, device, log_interval=100, base=None):

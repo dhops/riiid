@@ -94,7 +94,7 @@ class RRNCF(torch.nn.Module):
 
         return torch.sigmoid(x)
 
-    def forward_tbptt(self, questions, timestamps, tags, targets, users, q_lens, h_t_c_t=None):
+    def forward_tbptt(self, questions, timestamps, tags, targets, h_t, c_t):
         """
         :param x: Long tensor of size ``(batch_size, num_user_fields)``
         """
@@ -108,10 +108,10 @@ class RRNCF(torch.nn.Module):
         lstm_embeds = torch.cat((embed_qs, embed_ts, gaps, targets), dim=2).float()
         # lstm_in_packed = pack_padded_sequence(lstm_embeds, q_lens, batch_first=True, enforce_sorted=False)
 
-        if h_t_c_t is not None:
-            lstm_out, h_t_c_t = self.lstm(lstm_embeds, h_t_c_t)
+        if h_t is not None:
+            lstm_out, (h_t, c_t)= self.lstm(lstm_embeds, (h_t, c_t))
         else:
-            lstm_out, h_t_c_t = self.lstm(lstm_embeds)
+            lstm_out, (h_t, c_t) = self.lstm(lstm_embeds)
         # lstm_out, output_lengths = pad_packed_sequence(lstm_out_packed, batch_first=True)
 
         user_knowledge = torch.roll(lstm_out, 1, dims=1)
@@ -130,7 +130,7 @@ class RRNCF(torch.nn.Module):
         # x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
 
-        return torch.sigmoid(x), h_t_c_t
+        return torch.sigmoid(x), h_t, c_t
 
 
     def get_user_state(self, questions, timestamps, tags, targets, verbose=False):
