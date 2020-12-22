@@ -39,7 +39,7 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path, truncate=False)
+        return RRNDataset(path, truncate=False, short=True)
     else:
         raise ValueError('unknown dataset name: ' + name)
 
@@ -311,7 +311,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
-    model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag, userset_size=len(dataset))
+    model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag)
     model.to(device)
 
     if pretrained:
