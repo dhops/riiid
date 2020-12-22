@@ -22,12 +22,12 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path, truncate=False)
+        return RRNDataset(path, truncate=False, short=True, return_users=True)
     else:
         raise ValueError('unknown dataset name: ' + name)
 
 def pad_collate(batch):
-  (questions, times, tags, targets) = zip(*batch)
+  (users, questions, times, tags, targets) = zip(*batch)
 
   q_lens = [len(q) for q in questions]
 
@@ -36,19 +36,18 @@ def pad_collate(batch):
   tags_pad = pad_sequence(tags, batch_first=True, padding_value=tag_padding_idx)
   targets_pad = pad_sequence(targets, batch_first=True, padding_value=0)
 
-  return questions_pad, times_pad, tags_pad, targets_pad, q_lens
-
+  return users, questions_pad, times_pad, tags_pad, targets_pad, q_lens
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 dataset = get_dataset('RRNDataset', '../input/')
 
-user_states = torch.zeros((len(dataset), 32))
+user_states = torch.zeros((len(dataset), 16))
 
 data_loader = DataLoader(dataset, batch_size=10, collate_fn=pad_collate, shuffle=False)
 
-model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag)
+model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.2, questionset_size=n_item, tagset_size=n_tag)
 model.to(device)
 
 print("Loading pre-trained model...")
@@ -57,8 +56,9 @@ model.load_state_dict(torch.load('models/rrncf.pt', map_location=device))
 
 model.eval()
 with torch.no_grad():
-    for k, (questions, times, tags, targets, q_lens) in enumerate(data_loader):
+    for k, (users, questions, times, tags, targets, q_lens) in enumerate(data_loader):
 
+      print(users)
       batch_size = questions.shape[0]
 
       questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
@@ -69,7 +69,9 @@ with torch.no_grad():
       # print(y)
       # print(q_lens)
       
-      user_states[k*batch_size:(k+1)*batch_size] = h_t
+      # user_states[k*batch_size:(k+1)*batch_size] = h_t
+      user_states[users] = h_t
+      print(user_states[users[2]])
 
       if k%100 == 0:
         print("iteration: ",k)

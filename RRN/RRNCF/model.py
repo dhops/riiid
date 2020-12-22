@@ -36,10 +36,10 @@ class RRNCF(torch.nn.Module):
           torch.nn.ReLU(),
           torch.nn.Dropout(p=dropout),
         )
-        # self.fc = torch.nn.Linear(self.mlp_dim + self.lstm_dim, 1)
+        self.fc = torch.nn.Linear(self.mlp_dim + self.lstm_dim, 1)
 
         #try without GMF
-        self.fc = torch.nn.Linear(self.mlp_dim, 1)
+        # self.fc = torch.nn.Linear(self.mlp_dim, 1)
 
     def forward(self, questions, timestamps, tags, targets, q_lens):
         """
@@ -87,9 +87,8 @@ class RRNCF(torch.nn.Module):
         x = torch.cat((user_knowledge, embed_qs, embed_ts), dim=1)
         x = self.mlp(x)
 
-        # gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
-
-        # x = torch.cat([gmf, x], dim=1)
+        gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
+        x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
 
         return torch.sigmoid(x)

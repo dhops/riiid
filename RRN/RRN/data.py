@@ -11,7 +11,7 @@ class RRNDataset(torch.utils.data.Dataset):
         RRN Riiid Full Dataset
     """
 
-    def __init__(self, dataset_path, truncate=False, short=False):
+    def __init__(self, dataset_path, truncate=False, short=False, return_users=False):
         # Read the data into a Pandas dataframe
         # data = pd.read_csv(dataset_path, sep=sep, engine=engine, header=header).to_numpy()[:, :3]
         # full_data = np.load(dataset_path)
@@ -43,6 +43,7 @@ class RRNDataset(torch.utils.data.Dataset):
         self.tag_padding_idx = self.tagset_size
         self.max_tags = 6
         self.max_seq_len = 200
+        self.return_users = return_users
 
         user_counts = np.array([len(qs) for qs in self.rrn_dict_items.values()])
         # print(user_counts[:10])
@@ -121,6 +122,9 @@ class RRNDataset(torch.utils.data.Dataset):
 
         tags = np.array([tag+[self.tag_padding_idx]*(self.max_tags-len(tag)) for tag in tags_list])
         tags = torch.from_numpy(tags)
+
+        if self.return_users:
+            return user, questions, times, tags, targets
 
 
         return questions, times, tags, targets

@@ -297,7 +297,8 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # train_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
     valid_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
-    test_indices = np.sort(np.random.permutation(len(dataset))[:3000]).tolist()
+    # train_indices = 
+    test_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
 
     # train_dataset = Subset(dataset, train_indices)
     train_dataset = dataset
@@ -311,7 +312,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
-    model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag)
+    model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.2, questionset_size=n_item, tagset_size=n_tag)
     model.to(device)
 
     if pretrained:
