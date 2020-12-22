@@ -124,9 +124,8 @@ class RRNCF(torch.nn.Module):
         x = torch.cat((user_knowledge, embed_qs, embed_ts), dim=1)
         x = self.mlp(x)
 
-        # gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
-
-        # x = torch.cat([gmf, x], dim=1)
+        gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
+        x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
 
         return torch.sigmoid(x), h_t, c_t
