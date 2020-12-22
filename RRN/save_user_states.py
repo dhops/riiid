@@ -51,7 +51,7 @@ model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.2, questionset_size=n_item, ta
 model.to(device)
 
 print("Loading pre-trained model...")
-model.load_state_dict(torch.load('models/rrncf.pt', map_location=device))
+model.load_state_dict(torch.load('models/rrncf_random_all.pt', map_location=device))
 
 
 model.eval()

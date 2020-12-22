@@ -87,7 +87,7 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
             else:
                 q_idx = [l-1 for l in q_lens]
                 y = y[np.arange(y.shape[0]), q_idx].flatten()
-                targets = targets[np.arange(y.shape[0]), q_idx].flatten()
+                targets = targets[np.arange(y.shape[0]), q_idx].float().flatten()
 
             loss = criterion(y, targets)
             model.zero_grad()

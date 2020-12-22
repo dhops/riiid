@@ -178,10 +178,18 @@ class RRNCF(torch.nn.Module):
 
         x = torch.cat((user_knowledge, embed_qs, embed_ts), dim=1)
         x = self.mlp(x)
+        
+        # GMF STUFF
+        embed_qs_gmf = self.question_embedding_gmf(questions)
+        embed_ts_gmf = self.tag_embedding_gmf(tags)
+        embed_ts_gmf = torch.sum(embed_ts_gmf, dim=2)
+        embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
+        embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
 
-        # gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
+        gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
+        x = torch.cat([gmf, x], dim=1)
+        ########
 
-        # x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
 
         return h_t
