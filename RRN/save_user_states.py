@@ -22,7 +22,7 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path, truncate=False, short=True, return_users=True)
+        return RRNDataset(path, truncate=True, short=True, return_users=True)
     else:
         raise ValueError('unknown dataset name: ' + name)
 
@@ -43,7 +43,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 dataset = get_dataset('RRNDataset', '../input/')
 
-user_states = torch.zeros((len(dataset), 16))
+user_states = np.zeros((len(dataset), 16))
 
 data_loader = DataLoader(dataset, batch_size=10, collate_fn=pad_collate, shuffle=False)
 
@@ -58,20 +58,18 @@ model.eval()
 with torch.no_grad():
     for k, (users, questions, times, tags, targets, q_lens) in enumerate(data_loader):
 
-      print(users)
       batch_size = questions.shape[0]
 
       questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
 
       h_t = model.get_user_state(questions, times, tags, targets, q_lens)
 
-
       # print(y)
       # print(q_lens)
       
       # user_states[k*batch_size:(k+1)*batch_size] = h_t
-      user_states[users] = h_t
-      print(user_states[users[2]])
+      for i in range(len(users)):
+        user_states[users[i]] = h_t[i]
 
       if k%100 == 0:
         print("iteration: ",k)
