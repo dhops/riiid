@@ -25,6 +25,7 @@ n_item = 13523
 n_tag = 188
 q_padding_idx = n_item
 tag_padding_idx = n_tag
+LAST_LOSS = True
 
 # Load data for RRN
 
@@ -79,9 +80,14 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
 
             y = y.reshape(questions.shape)
 
-            mask = questions != q_padding_idx
-            y = torch.masked_select(y, mask)
-            targets = torch.masked_select(targets.float().reshape(mask.shape), mask)
+            if not LAST_LOSS:
+                mask = questions != q_padding_idx
+                y = torch.masked_select(y, mask)
+                targets = torch.masked_select(targets.float().reshape(mask.shape), mask)
+            else:
+                q_idx = [l-1 for l in q_lens]
+                y = y[np.arange(y.shape[0]), q_idx].flatten()
+                targets = targets[np.arange(y.shape[0]), q_idx].flatten()
 
             loss = criterion(y, targets)
             model.zero_grad()
