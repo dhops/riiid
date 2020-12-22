@@ -168,30 +168,6 @@ class RRNCF(torch.nn.Module):
         lstm_out, (h_t, c_t) = self.lstm(lstm_embeds)
         # lstm_out, output_lengths = pad_packed_sequence(lstm_out_packed, batch_first=True)
 
-        user_knowledge = torch.roll(lstm_out, 1, dims=1)
-        user_knowledge[:,0] = 0.0
-
-        user_knowledge = torch.reshape(user_knowledge, (-1, self.lstm_dim))
-        embed_qs = torch.reshape(embed_qs, (-1, self.q_embed_dim))
-
-        embed_ts = torch.reshape(embed_ts, (-1, self.t_embed_dim))
-
-        x = torch.cat((user_knowledge, embed_qs, embed_ts), dim=1)
-        x = self.mlp(x)
-        
-        # GMF STUFF
-        embed_qs_gmf = self.question_embedding_gmf(questions)
-        embed_ts_gmf = self.tag_embedding_gmf(tags)
-        embed_ts_gmf = torch.sum(embed_ts_gmf, dim=2)
-        embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
-        embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
-
-        gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
-        x = torch.cat([gmf, x], dim=1)
-        ########
-
-        x = self.fc(x).squeeze(1)
-
         return h_t
 
     def predict(self, user_states, questions, tags):
