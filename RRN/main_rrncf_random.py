@@ -38,7 +38,7 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path, truncate=True)
+        return RRNDataset(path, truncate=True, short=True)
     else:
         raise ValueError('unknown dataset name: ' + name)
 

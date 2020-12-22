@@ -11,19 +11,30 @@ class RRNDataset(torch.utils.data.Dataset):
         RRN Riiid Full Dataset
     """
 
-    def __init__(self, dataset_path, truncate=False):
+    def __init__(self, dataset_path, truncate=False, short=False):
         # Read the data into a Pandas dataframe
         # data = pd.read_csv(dataset_path, sep=sep, engine=engine, header=header).to_numpy()[:, :3]
         # full_data = np.load(dataset_path)
         # Retrieve the items and ratings data
-        with open(dataset_path + 'rrn_dict_items.pkl', 'rb') as f:
-            self.rrn_dict_items = pickle.load(f)
-        with open(dataset_path + 'rrn_dict_times.pkl', 'rb') as f:
-            self.rrn_dict_times = pickle.load(f)
-        with open(dataset_path + 'rrn_dict_ratings.pkl', 'rb') as f:
-            self.rrn_dict_ratings = pickle.load(f)
-        with open(dataset_path + 'rrn_dict_tags.pkl', 'rb') as f:
-            self.rrn_dict_tags = pickle.load(f)
+        
+        if not short:
+            with open(dataset_path + 'rrn_dict_items.pkl', 'rb') as f:
+                self.rrn_dict_items = pickle.load(f)
+            with open(dataset_path + 'rrn_dict_times.pkl', 'rb') as f:
+                self.rrn_dict_times = pickle.load(f)
+            with open(dataset_path + 'rrn_dict_ratings.pkl', 'rb') as f:
+                self.rrn_dict_ratings = pickle.load(f)
+            with open(dataset_path + 'rrn_dict_tags.pkl', 'rb') as f:
+                self.rrn_dict_tags = pickle.load(f)
+        else:
+            with open(dataset_path + 'items_short.pkl', 'rb') as f:
+                self.rrn_dict_items = pickle.load(f)
+            with open(dataset_path + 'times_short.pkl', 'rb') as f:
+                self.rrn_dict_times = pickle.load(f)
+            with open(dataset_path + 'ratings_short.pkl', 'rb') as f:
+                self.rrn_dict_ratings = pickle.load(f)
+            with open(dataset_path + 'tags_short.pkl', 'rb') as f:
+                self.rrn_dict_tags = pickle.load(f)
         # with open(dataset_path + 'item_map.pkl', 'rb') as f:
         #     self.item_map = pickle.load(f)
 
