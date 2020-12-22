@@ -25,7 +25,6 @@ n_item = 13523
 n_tag = 188
 q_padding_idx = n_item
 tag_padding_idx = n_tag
-tbptt_length = 100
 
 # Load data for RRN
 
@@ -39,7 +38,7 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path, truncate=False)
+        return RRNDataset(path, truncate=True)
     else:
         raise ValueError('unknown dataset name: ' + name)
 
@@ -70,31 +69,13 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
     # Step into train mode
     model.train()
     total_loss = 0
-    update_steps = 0
-    model.zero_grad()
+    log_steps = 0
 
-    for k, (questions_full, times_full, tags_full, targets_full, q_lens) in enumerate(data_loader):
-        h_t = None
-        c_t = None
-        start_idx = 0
-        full_length = questions_full.shape[1]
-        iters = int((full_length-1)/tbptt_length) + 1
-
-        for i in range(iters):
-            questions = questions_full[:,start_idx:start_idx+tbptt_length]
-            times = times_full[:,start_idx:start_idx+tbptt_length]
-            tags = tags_full[:,start_idx:start_idx+tbptt_length]
-            targets = targets_full[:,start_idx:start_idx+tbptt_length]
-
-            start_idx += tbptt_length
+    for k, (questions, times, tags, targets, q_lens) in enumerate(data_loader):
 
             questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
 
-            if h_t is not None:
-                h_t = h_t.detach()
-                c_t = c_t.detach()
-
-            y, h_t, c_t = model.forward_tbptt(questions, times, tags, targets, h_t, c_t)
+            y = model.forward(questions, times, tags, targets, q_lens)
 
             y = y.reshape(questions.shape)
 
@@ -103,77 +84,18 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
             targets = torch.masked_select(targets.float().reshape(mask.shape), mask)
 
             loss = criterion(y, targets)
+            model.zero_grad()
             loss.backward()
-            total_loss += loss.item()
+            optimizer.step()
 
+            total_loss += loss.item()
+            log_steps += 1
         # Log the total loss for every log_interval runs
-            if (update_steps + 1) % log_interval == 0:
-                print('iteration: ', update_steps, '    - loss:', total_loss / log_interval)
+            if (log_steps + 1) % log_interval == 0:
+                print('iteration: ', log_steps, '    - loss:', total_loss / log_interval)
                 total_loss = 0
-                optimizer.step()
-                model.zero_grad()
-            update_steps += 1
 
         # wandb.log({"Total Loss": total_loss})
-
-# def test(model, data_loader, device, base):
-#     """
-#     Evaluate the model
-#     :param model: choice of model
-#     :param data_loader: data loader class
-#     :param device: choice of device
-#     :return: AUC score
-#     """
-#     # Step into evaluation mode
-#     model.eval()
-#     tgts, predicts, base_model_predicts = list(), list(), list()
-
-#     with torch.no_grad():
-#         for k, (questions_full, times_full, tags_full, targets_full, q_lens_full) in enumerate(data_loader):
-#             h_t = None
-#             c_t = None
-#             start_idx = 0
-#             full_length = questions_full.shape[1]
-#             iters = int((full_length-1)/tbptt_length) + 1
-
-#             print(full_length)
-#             print(iters)
-
-#             for i in range(iters):
-#                 print(i)
-#                 questions = questions_full[:,start_idx:start_idx+tbptt_length]
-#                 times = times_full[:,start_idx:start_idx+tbptt_length]
-#                 tags = tags_full[:,start_idx:start_idx+tbptt_length]
-#                 targets = targets_full[:,start_idx:start_idx+tbptt_length]
-
-#                 start_idx += tbptt_length
-                
-#                 questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
-
-#                 if h_t is not None:
-#                     h_t.detach()
-#                     c_t.detach()
-
-#                 y, h_t, c_t = model.forward_tbptt(questions, times, tags, targets, h_t, c_t)
-
-#                 y = y.reshape(questions.shape)
-
-#                 mask = questions != q_padding_idx
-
-#                 y1 = y
-#                 t1 = targets
-
-#                 y = torch.masked_select(y, mask)
-#                 targets = torch.masked_select(targets.float().reshape(mask.shape), mask)
-
-#                 predicts.extend(y.tolist())
-#                 tgts.extend(targets.tolist())
-
-#             if (k + 1) % 10 == 0:
-#                 print('test iteration: ', k)
-
-#     # Return AUC score between predicted ratings and actual ratings
-#     return roc_auc_score(tgts, predicts)
 
 def test2(model, data_loader, device, base):
     """
@@ -190,8 +112,6 @@ def test2(model, data_loader, device, base):
 
     with torch.no_grad():
         for k, (questions, times, tags, targets, q_lens) in enumerate(data_loader):
-            h_t = None
-            c_t = None
             
             questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
 
@@ -220,45 +140,6 @@ def test2(model, data_loader, device, base):
     print("roc auc last only: ", roc_auc_score(tgts_last, predicts_last))
 
     # Return AUC score between predicted ratings and actual ratings
-    return roc_auc_score(tgts, predicts)
-
-def test_last_only(model, data_loader, device, base):
-    """
-    Evaluate the model
-    :param model: choice of model
-    :param data_loader: data loader class
-    :param device: choice of device
-    :return: AUC score
-    """
-    # Step into evaluation mode
-    model.eval()
-    tgts, predicts = list(), list()
-
-    with torch.no_grad():
-        for k, (questions, times, tags, targets, q_lens) in enumerate(data_loader):
-            h_t = None
-            c_t = None
-            
-            questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
-
-            y = model(questions, times, tags, targets, q_lens)
-
-            y = y.reshape(questions.shape)
-            targets.float().reshape(questions.shape)
-
-            q_idx = [l-1 for l in q_lens]
-
-            y_last = y[np.arange(y.shape[0]), q_idx].flatten()
-            t_last = targets[np.arange(y.shape[0]), q_idx].flatten()
-
-            predicts.extend(y_last.tolist())
-            tgts.extend(t_last.tolist())
-
-            if (k + 1) % 10 == 0:
-                print('test iteration: ', k)
-
-    # Return AUC score between predicted ratings and actual ratings
-    print(len(predicts))
     return roc_auc_score(tgts, predicts)
 
 
@@ -297,7 +178,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # train_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
     valid_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
-    test_indices = np.sort(np.random.permutation(len(dataset))[:3000]).tolist()
+    test_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
 
     # train_dataset = Subset(dataset, train_indices)
     train_dataset = dataset
@@ -311,7 +192,7 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
 
     # Get the model
     # model = get_model(model_name, dataset).to(device)
-    model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag, userset_size=len(dataset))
+    model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.2, questionset_size=n_item, tagset_size=n_tag)
     model.to(device)
 
     if pretrained:
@@ -328,8 +209,8 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     # wandb.watch(model, log="all")
 
     # Test the pre-trained model
-    valid_auc = test2(model, valid_data_loader, device, base)
-    print('epoch: -1 validation: auc:', valid_auc)
+    # valid_auc = test2(model, valid_data_loader, device, base)
+    # print('epoch: -1 validation: auc:', valid_auc)
 
     # Loop through pre-defined number of epochs
     for epoch_i in range(epoch):
@@ -365,7 +246,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', default='rrn')
     parser.add_argument('--epoch', type=int, default=3)
     parser.add_argument('--learning_rate', type=float, default=0.001)
-    parser.add_argument('--batch_size', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--weight_decay', type=float, default=1e-6)
     # parser.add_argument('--device', default='cpu')
     parser.add_argument('--save_dir', default='models')

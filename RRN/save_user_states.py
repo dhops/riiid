@@ -7,18 +7,10 @@ from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 import pickle
     
-n_item = 13522
+n_item = 13523
 n_tag = 188
 q_padding_idx = n_item
 tag_padding_idx = n_tag
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag)
-model.to(device)
-
-print("Loading pre-trained model...")
-model.load_state_dict(torch.load('models/rrn.pt', map_location=device))
 
 def get_dataset(name, path):
     """
@@ -30,12 +22,12 @@ def get_dataset(name, path):
     print("Loading dataset...")
 
     if name == 'RRNDataset':
-        return RRNDataset(path)
+        return RRNDataset(path, truncate=False)
     else:
         raise ValueError('unknown dataset name: ' + name)
 
 def pad_collate(batch):
-  (users, questions, times, tags, targets) = zip(*batch)
+  (questions, times, tags, targets) = zip(*batch)
 
   q_lens = [len(q) for q in questions]
 
@@ -44,37 +36,43 @@ def pad_collate(batch):
   tags_pad = pad_sequence(tags, batch_first=True, padding_value=tag_padding_idx)
   targets_pad = pad_sequence(targets, batch_first=True, padding_value=0)
 
-  return users, questions_pad, times_pad, tags_pad, targets_pad, q_lens
+  return questions_pad, times_pad, tags_pad, targets_pad, q_lens
 
+
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 dataset = get_dataset('RRNDataset', '../input/')
 
-user_states = np.zeros((len(dataset), 16))
+user_states = torch.zeros((len(dataset), 32))
 
 data_loader = DataLoader(dataset, batch_size=10, collate_fn=pad_collate, shuffle=False)
 
+model = RRNCF(embed_dim=16, mlp_dim=16, dropout=0.5, questionset_size=n_item, tagset_size=n_tag)
+model.to(device)
+
+print("Loading pre-trained model...")
+model.load_state_dict(torch.load('models/rrncf.pt', map_location=device))
+
+
 model.eval()
 with torch.no_grad():
-    for k, (users, questions, times, tags, targets, q_lens) in enumerate(data_loader):
-        
-        questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
+    for k, (questions, times, tags, targets, q_lens) in enumerate(data_loader):
 
-        y = model.get_user_state(questions, times, tags, targets)
+      batch_size = questions.shape[0]
 
-        mask = questions != q_padding_idx
+      questions, times, tags, targets = questions.to(device), times.to(device), tags.to(device), targets.to(device)
 
-        # print(y)
-        # print(q_lens)
-        
-        for i in range(len(users)):
-        	user_states[users[i]] = y[i,q_lens[i]-1,:]
-        	# print(y[i,q_lens[i]-1,:])
-        	# print(users[i])
+      h_t = model.get_user_state(questions, times, tags, targets, q_lens)
 
-       	if k%100 == 0:
-       		print("iteration: ", k)
-			
-with open('../user_states.pkl', 'wb') as f:
-    pickle.dump(user_states, f)
-print("done")
 
+      # print(y)
+      # print(q_lens)
+      
+      user_states[k*batch_size:(k+1)*batch_size] = h_t
+
+      if k%100 == 0:
+        print("iteration: ",k)
+
+torch.save(user_states, 'user_states.pt')
+		
