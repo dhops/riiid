@@ -97,6 +97,7 @@ class RRNDataset(torch.utils.data.Dataset):
         questions = torch.from_numpy(np.asarray(self.rrn_dict_items[user]))
         times = torch.from_numpy(np.asarray(self.rrn_dict_times[user]))
         targets = torch.from_numpy(np.asarray(self.rrn_dict_ratings[user]))
+        
         tags_list = self.rrn_dict_tags[user]
 
         # tags = torch.ones((len(questions), max_tags), dtype=torch.long) * tag_padding_idx

@@ -177,16 +177,23 @@ def main(dataset_name, dataset_path, model_name, epoch, learning_rate,
     print("Dataset length: ", len(dataset))
 
     # train_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
+    train_indices = list(range(len(dataset)))
     valid_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
     test_indices = np.sort(np.random.permutation(len(dataset))[:10000]).tolist()
 
+    for i in valid_indices:
+        train_indices.remove(i)
+
     # train_dataset = Subset(dataset, train_indices)
-    train_dataset = dataset
+    train_dataset = Subset(dataset, train_indices)
     valid_dataset = Subset(dataset, valid_indices)
     test_dataset = Subset(dataset, test_indices)
 
+    print(len(train_dataset))
+    print(len(valid_dataset))
+
     # Instantiate data loader classes for train, validation, and test sets
-    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate, num_workers=4, drop_last=True)
+    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate, num_workers=4, drop_last=True)
     valid_data_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate, num_workers=1, drop_last=True)
     test_data_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate, num_workers=1, drop_last=True)
 

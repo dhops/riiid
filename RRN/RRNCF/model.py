@@ -95,7 +95,7 @@ class RRNCF(torch.nn.Module):
 
         embed_qs_gmf = self.question_embedding_gmf(questions)
         embed_ts_gmf = self.tag_embedding_gmf(tags)
-        embed_ts_gmf = torch.sum(embed_ts, dim=2)
+        embed_ts_gmf = torch.sum(embed_ts_gmf, dim=2)
         embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
         embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
         
@@ -141,7 +141,7 @@ class RRNCF(torch.nn.Module):
         # GMF STUFF
         embed_qs_gmf = self.question_embedding_gmf(questions)
         embed_ts_gmf = self.tag_embedding_gmf(tags)
-        embed_ts_gmf = torch.sum(embed_ts, dim=2)
+        embed_ts_gmf = torch.sum(embed_ts_gmf, dim=2)
         embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
         embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
 
