@@ -17,9 +17,14 @@ class RRNCF(torch.nn.Module):
         self.lstm_dim = mlp_dim
         self.t_embed_dim = embed_dim - self.q_embed_dim
 
+        # GMF seperate embedding
+
         # self.user_embedding = torch.nn.Embedding(userset_size+1, self.embed_dim, padding_idx=userset_size)
         self.question_embedding = torch.nn.Embedding(questionset_size+1, self.q_embed_dim, padding_idx=questionset_size)
         self.tag_embedding = torch.nn.Embedding(tagset_size+1, self.t_embed_dim, padding_idx=tagset_size)
+
+        self.question_embedding_gmf = torch.nn.Embedding(questionset_size+1, self.q_embed_dim, padding_idx=questionset_size)
+        self.tag_embedding_gmf = torch.nn.Embedding(tagset_size+1, self.t_embed_dim, padding_idx=tagset_size)
 
         self.embed_output_dim = self.q_embed_dim + self.t_embed_dim
 
@@ -87,7 +92,15 @@ class RRNCF(torch.nn.Module):
         x = torch.cat((user_knowledge, embed_qs, embed_ts), dim=1)
         x = self.mlp(x)
 
-        gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
+
+        embed_qs_gmf = self.question_embedding_gmf(questions)
+        embed_ts_gmf = self.tag_embedding_gmf(tags)
+        embed_ts_gmf = torch.sum(embed_ts, dim=2)
+        embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
+        embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
+        
+
+        gmf = user_knowledge * torch.cat((embed_qs_gmf, embed_ts_gmf), dim=1)
         x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
 
@@ -124,8 +137,18 @@ class RRNCF(torch.nn.Module):
         x = torch.cat((user_knowledge, embed_qs, embed_ts), dim=1)
         x = self.mlp(x)
 
+
+        # GMF STUFF
+        embed_qs_gmf = self.question_embedding_gmf(questions)
+        embed_ts_gmf = self.tag_embedding_gmf(tags)
+        embed_ts_gmf = torch.sum(embed_ts, dim=2)
+        embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
+        embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
+
         gmf = user_knowledge * torch.cat((embed_qs, embed_ts), dim=1)
         x = torch.cat([gmf, x], dim=1)
+        ########
+
         x = self.fc(x).squeeze(1)
 
         return torch.sigmoid(x), h_t, c_t
