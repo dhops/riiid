@@ -26,7 +26,7 @@ n_item = 13523
 n_tag = 188
 q_padding_idx = n_item
 tag_padding_idx = n_tag
-LAST_LOSS = True
+LAST_LOSS = False
 
 # Load data for RRN
 
@@ -79,7 +79,7 @@ def train(model, optimizer, data_loader, criterion, device, log_interval=100, ba
 
             users, questions, times, tags, targets = users.to(device), questions.to(device), times.to(device), tags.to(device), targets.to(device)
 
-            y = model.forward(questions, times, tags, targets, q_lens, users)
+            y = model(questions, times, tags, targets, q_lens, users)
 
             y = y.reshape(questions.shape)
 
