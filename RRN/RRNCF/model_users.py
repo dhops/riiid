@@ -10,21 +10,23 @@ class RRNCF(torch.nn.Module):
         X He, et al. Neural Collaborative Filtering, 2017.
     """
 
-    def __init__(self, embed_dim, mlp_dim, dropout, questionset_size, tagset_size):
+    def __init__(self, embed_dim, mlp_dim, dropout, questionset_size, tagset_size, userset_size):
         super().__init__()
         self.q_embed_dim = 12
         self.mlp_dim = mlp_dim
         self.lstm_dim = mlp_dim
         self.t_embed_dim = embed_dim - self.q_embed_dim
+        self.embed_dim = embed_dim
 
-        # GMF seperate embedding
-
-        # self.user_embedding = torch.nn.Embedding(userset_size+1, self.embed_dim, padding_idx=userset_size)
+       
         self.question_embedding = torch.nn.Embedding(questionset_size+1, self.q_embed_dim, padding_idx=questionset_size)
         self.tag_embedding = torch.nn.Embedding(tagset_size+1, self.t_embed_dim, padding_idx=tagset_size)
 
+        # GMF seperate embedding
         self.question_embedding_gmf = torch.nn.Embedding(questionset_size+1, self.q_embed_dim, padding_idx=questionset_size)
         self.tag_embedding_gmf = torch.nn.Embedding(tagset_size+1, self.t_embed_dim, padding_idx=tagset_size)
+        self.user_embedding = torch.nn.Embedding(userset_size+1, self.embed_dim, padding_idx=userset_size)
+
 
         self.embed_output_dim = self.q_embed_dim + self.t_embed_dim
 
@@ -46,7 +48,7 @@ class RRNCF(torch.nn.Module):
         #try without GMF
         # self.fc = torch.nn.Linear(self.mlp_dim, 1)
 
-    def forward(self, questions, timestamps, tags, targets, q_lens):
+    def forward(self, questions, timestamps, tags, targets, q_lens, users):
         """
         :param x: Long tensor of size ``(batch_size, num_user_fields)``
         """
@@ -93,15 +95,28 @@ class RRNCF(torch.nn.Module):
         x = self.mlp(x)
 
 
+        # users = users.unsqueeze(1)
+        # users = users.repeat(1,questions.shape[1])
+        # embed_us = self.user_embedding(users)
+        # embed_us = torch.reshape(embed_us, (-1, self.embed_dim))
+
+
+        # GMF STUFF
+        users = users.unsqueeze(1)
+        users = users.repeat(1,questions.shape[1])
+        embed_us_gmf = self.user_embedding(users)
+        embed_us_gmf = torch.reshape(embed_us_gmf, (-1, self.embed_dim))
+
         embed_qs_gmf = self.question_embedding_gmf(questions)
         embed_ts_gmf = self.tag_embedding_gmf(tags)
         embed_ts_gmf = torch.sum(embed_ts_gmf, dim=2)
         embed_qs_gmf = torch.reshape(embed_qs_gmf, (-1, self.q_embed_dim))
         embed_ts_gmf = torch.reshape(embed_ts_gmf, (-1, self.t_embed_dim))
-        
 
-        gmf = user_knowledge * torch.cat((embed_qs_gmf, embed_ts_gmf), dim=1)
+        gmf = embed_us_gmf * torch.cat((embed_qs_gmf, embed_ts_gmf), dim=1)
         x = torch.cat([gmf, x], dim=1)
+        ########
+
         x = self.fc(x).squeeze(1)
 
         return torch.sigmoid(x)
